@@ -14,17 +14,22 @@ export const MAX_VIA = 20
 
 const USERS = foldKey('users')
 const SYSTEM = foldKey(PRODUCT.systemDir)
+const PROJECTS = foldKey('projects')
 export const segsOf = (p: string) => (p === '' ? [] : p.split('/'))
 /** byte order, the same everywhere (SQLite's ORDER BY, the mock, the cursor) */
 export const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 
 const TEMP = foldKey(PRODUCT.tmpPrefix)
-/** Segments of a team path that may be shown, or null: anything under users/ or .system/ (any case or width), a
+/** Segments of a team path that may be shown, or null: anything under users/ or .system/ (any case or width), anything
+ * inside a team project's folder projects/<name>/ (any case), a
  * server temp name anywhere (any case: `.MYCEL-TMP-…` too), a name the team folder does not accept. Display only: what
  * the permission function answers for such a path does not change. */
 export function shownSegs(p: string): string[] | null {
   const segs = segsOf(p)
   if (segs.length && (foldKey(segs[0]!) === USERS || foldKey(segs[0]!) === SYSTEM)) return null
+  // nothing inside a team project (docs/DECISIONS.md "Project contents only for members"): its folder projects/<name>
+  // is one row; what is in it is its members' to know, the owner's and admins' only as members (on the project's page)
+  if (segs.length >= 3 && foldKey(segs[0]!) === PROJECTS) return null
   if (segs.some((s, i) => badSegment(s) !== null || hiddenEntry(s, i) || foldKey(s).startsWith(TEMP))) return null
   return segs
 }

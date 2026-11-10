@@ -2,6 +2,7 @@
 // delete (tombstone + personal folder handling), password reset (temporary password or one-time link), owner
 // transfer. Admins never see other people's chats or memories, and there is no "sign in as" (tab 1, tab 7).
 import fs from 'node:fs'
+import { projectJoinsOfNewAccount } from '../chat/project-joins'
 import path from 'node:path'
 import type { Context } from 'hono'
 import type { z } from 'zod'
@@ -110,6 +111,8 @@ export async function createUser(c: Context<AppEnv>, ctx: AppContext, b: In<type
     throw e
   }
   ensurePersonalFolder(ctx.files.fx.root, id)
+  // team projects this new person sees through their groups: audited, their members told (chat/project-joins.ts)
+  if (groups.length) projectJoinsOfNewAccount(ctx, id, auth.user.id, captureState(ctx.db))
   // connection templates this new person is in (security review 2, #1: on the event, not only the 30-second pass)
   notifyTemplateOffers(ctx, { userId: id })
   const user = toUser(ctx.db, getUser(ctx.db, id)!)

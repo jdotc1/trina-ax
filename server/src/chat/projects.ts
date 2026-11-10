@@ -39,16 +39,34 @@ export function mayEditProject(files: FileService, p: Principal, r: { folder_pat
 export interface ProjectSight { folder_path: string; trashed_with: string | null }
 
 /**
- * Who sees a project (its name, instructions, chats in it, its instructions in their AI, its dev environment): whoever
- * can read its folder, while the folder is in place. While the folder (or a folder above it) is in the trash, or was
- * purged from there (`projects.trashed_with`, set by TeamFiles.remove()), only admins and the owner, who alone can
- * restore it (docs/DECISIONS.md "휴지통에 간 그룹·프로젝트·규칙 폴더"): the folder's rules went to the trash with it, so
- * its path falls back to the rules above, and may be another folder's by now. Decided by the project's own state,
- * never by looking up paths in the trash.
+ * Who sees a project's contents (its instructions, chats in it, its instructions in their AI, its dev environment):
+ * whoever can read its folder, while the folder is in place. For a team project in projects/<name> that means its
+ * members only: the owner and admins too only when they are members (policy/access.ts, the members-only zone). While
+ * the folder (or a folder above it) is in the trash, or was purged from there (`projects.trashed_with`, set by
+ * TeamFiles.remove()), nobody: the folder's rules went to the trash with it, so its path falls back to the rules above,
+ * and may be another folder's by now. Decided by the project's own state, never by looking up paths in the trash. The
+ * owner and admins still manage such a project (mayManageProject) and restore its folder.
  */
 export function canSeeProject(files: FileService, user: Principal, p: ProjectSight): boolean {
-  if (p.trashed_with !== null && !isAdminRole(user)) return false
+  // its contents (instructions, chats, files) while its folder is in the trash or purged: nobody, admins included
+  // (docs/DECISIONS.md "Project contents only for members"); the project itself stays the owner's and admins' to
+  // manage (mayManageProject)
+  if (p.trashed_with !== null) return false
   return canRead(files, user, p.folder_path)
+}
+
+/** A team project (not a personal one under users/<id>/). */
+export const isTeamProject = (p: Pick<ProjectSight, 'folder_path'>): boolean => !isPersonalFolder(p.folder_path)
+
+/**
+ * Who may manage a project without reading it (docs/DECISIONS.md "Project contents only for members"): see that it
+ * exists (name, creator, member count), its members (read, change, add themselves), rename it, delete it, restore its
+ * folder from the trash. The owner and admins for every team project, whatever its state; its creator while they may
+ * edit it (mayEditProject). Never its contents: those are canSeeProject's.
+ */
+export function mayManageProject(files: FileService, user: Principal, p: ProjectSight & { created_by: string | null }): boolean {
+  if (isTeamProject(p) && isAdminRole(user)) return true
+  return p.trashed_with === null && mayEditProject(files, user, p)
 }
 
 /**
