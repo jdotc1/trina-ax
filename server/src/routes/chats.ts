@@ -726,7 +726,9 @@ export const chatsRoutes: RouteModule = {
         if (!isAdmin(p)) fail('forbidden', tr('projectFolderAdminOnly', locale))
         if (!accountSeesProject(ctx.db, rulesInPlace(ctx.db, ctx.files, r), r, p.id)) fail('forbidden', tr('projectRepointMember', locale), { params: { reason: 'project_not_member' } })
       } else {
-        if (!canSeeProject(ctx.files, p, r)) fail('forbidden', tr('projectCreatorOnly', locale))
+        // (in the trash: said as such; someone who manages it without being a member: that members change what is in it)
+        if (r.trashed_with !== null) fail('conflict', tr('projectInTrashEdit', locale), { params: { reason: 'project_in_trash' } })
+        if (!canSeeProject(ctx.files, p, r)) fail('forbidden', tr('projectMembersOnlyEdit', locale), { params: { reason: 'project_members_only' } })
         if (!canWrite(ctx.files, p, r.folder_path)) fail('forbidden', tr('projectFolderNoWrite', locale))
         if (!mayEdit(ctx, p, r)) fail('forbidden', tr('projectCreatorOnly', locale))
       }
@@ -855,6 +857,9 @@ export const chatsRoutes: RouteModule = {
       // folder of a deleted project is left for anyone to open (security review M3). `trashFolder` is not read any more.
       const onDisk = (rel: string) => { try { return fs.lstatSync(path.join(ctx.files.fx.root, ...rel.split('/'))).isDirectory() } catch { return false } }
       if (isProjectsFolder(r.folder_path) && r.trashed_with === null && onDisk(r.folder_path)) {
+        // a member's older project on a folder an admin made (folder_made 0: its rules are the admins'): not theirs to
+        // take to the trash, and deleting the project alone would leave that folder with no project to manage it
+        if (!isAdmin(p) && !accessEditable(r, ctx.files, p)) fail('conflict', tr('projectTrashFolderNot', locale), { params: { reason: 'project_folder_stays' } })
         const shared = ctx.db.query('SELECT id FROM chats WHERE project_id = ? AND shared_at IS NOT NULL AND deleted_at IS NULL').all(r.id) as { id: string }[]
         const audience = new Audiences(ctx.db, ctx.files).of(r)
         for (const x of shared) rt.stopChat(x.id)

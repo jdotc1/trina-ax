@@ -166,7 +166,7 @@ describe('the steps that run once at the first start', () => {
     // the leftover folder became a project of its own the owner and admins manage
     const adopted = db.query("SELECT name, created_by FROM projects WHERE folder_path = 'projects/Left over'").get() as { name: string; created_by: string | null } | null
     expect(adopted).toEqual({ name: 'Left over', created_by: null })
-    const m = await h.api('carol').call(API.listProjects, { query: { manage: true } as never })
+    const m = await h.api('carol').call(API.listProjects, { query: { manage: '1' } })
     expect(m.items.some((x) => x.folderPath === 'projects/Left over' && x.membersEditable)).toBe(true)
     // once: a role rule made after it stays (a second start does nothing)
     db.query("INSERT INTO folder_rules (id, folder_id, subject_type, subject_id, access) VALUES (?, ?, 'role', 'admin', 'read')").run(rid, folder.id)
