@@ -5,3 +5,4 @@
 - Admin › Folder permissions shows project folders as **Members only**; their members are changed on the project's page.
 - When someone joins a project (also by being added to one of its departments), its members get a quiet notice in their inbox.
 - Admins: the activity log, the knowledge graph status and the skill changes no longer show the names of files inside projects you are not a member of. The owner's export leaves those projects out. The server's own backups still hold everything, as before.
+- A scheduled task whose instruction has a line that starts with `>` no longer stops every save of its run as if the run had read a team chat room.
