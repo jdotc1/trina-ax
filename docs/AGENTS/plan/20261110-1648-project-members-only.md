@@ -362,6 +362,14 @@ defaults the owner may change (DECISIONS "Project contents only for members"). W
   member; it covers every path (Add me, members dialog, AI card, group changes, new accounts).
 - **#341 (`fix/members-count-apart`) landed first.** Its split stays; for projects its role part is 0 and the project
   role lines are gone; its changes note was trimmed to the folder chip.
-- **A project made for the dev environment on the team root** (`routes/dev-env.ts giveProjectFolder`) can no longer
-  be given a `projects/` folder by an admin who is not its member: the request is refused with its existing message.
+- **A project made for the dev environment on the team root** (`routes/dev-env.ts giveProjectFolder`): its
+  `projects/<name>` is made as the system, and the admin who turns the box on becomes a member by name.
+- **Leftover folders** (in `projects/` with no project) become projects when the owner or an admin opens the projects
+  they manage, not at start (a new team may make its folders first).
+- **Making something directly in `projects/`** answers one plain sentence ("only a new project makes a folder
+  directly in 'projects/'"), the same whether the name exists or not.
+- **The deep code review** found three ways in (a join while the project is in the trash, a rule on a folder inside a
+  project, names with quotes in the log) and a member trashing an admin's folder through an older project; all fixed
+  and in `tests/security/project-members-only.test.ts`. The owner and admins now read inside a project only once they
+  read its folder.
 - **Not counted:** legacy projects on the team servers (no read-only way from the code or fixtures).

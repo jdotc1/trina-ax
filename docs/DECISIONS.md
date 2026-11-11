@@ -19909,7 +19909,8 @@ only with the group "leads" (3 people) said "5 people see it": the owner and an 
   Version history, timelines, the trash and the #278 rescue have no owner/admin fallback inside the zone.
 - **Once, at the first start** (`chat/members-only-once.ts`): owner and admin ids leave the stored audiences of shared
   answers; role rules for admins inside the zone go; schedules with a save folder or source under `projects/` lapse
-  once and ask again; owner and admin AI sessions start fresh.
+  once and ask again; owner and admin AI sessions start fresh. (Folders without a project: when an admin opens
+  Projects, below.)
 - **Counts.** Project counts, the members dialog and the dry runs count members only; a new project's dry run never
   counts admins unless chosen (no `adminsApart`). #341's split keeps its folder chip; for projects its role part is 0.
 - **Defaults, owner may change** (recommended in the plan's review; the coordinator applied them):
@@ -19927,10 +19928,14 @@ only with the group "leads" (3 people) said "5 people see it": the owner and an 
   while members of the team keep such partial access as before; (3) the activity log missed names with `'` or `` ` ``:
   file rows are judged by their path, and text by every `projects/<name>/` in it. Also taken: the connector's group
   answers name only project folders; a moved or copied project skill's name is left out of the log for non-members;
-  `projects` in any letter case is the project folder everywhere; folders in `projects/` that no project used become
-  projects of their own once (named after the folder, no creator) so admins can manage or delete them; a member who
-  made an older project on an admin's folder cannot delete it (it would trash the admin's folder): an admin does.
-  Files can no longer rename a project's folder (rename the project on its page).
+  `projects` in any letter case is the project folder everywhere; a folder in `projects/` that no project uses becomes
+  a project of its own (named after the folder, no creator, audited `project.adopted`) when the owner or an admin opens
+  the projects they manage, so they can manage or delete it (not at start: a new team may make its folders before
+  their projects); a member who made an older project on an admin's folder cannot delete it (it would trash the
+  admin's folder): an admin does. Files and the AI's `skill_files` can no longer rename or move a project's folder
+  (rename the project on its page); a new entry directly in `projects/` is refused with one plain sentence, the same
+  whether the name is there or not. The dev environment's "a folder of its own" for a project on the team root makes
+  `projects/<name>` as the system, with the admin who turns it on as a member by name.
 - **Not closed by this:** the server's backups and disk hold everything; an admin who resets a member's password or
   makes an account can sign in as them (noisy and recorded). Past room posts and exports stay.
 - **Plain words** (owner, 2026-11-11): no "role", "rule" or paths in the new screens. "Only members can open this
