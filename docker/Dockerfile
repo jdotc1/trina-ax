@@ -59,8 +59,8 @@ ARG TRINA_AX_PACKAGE_GROUPS=""
 RUN set -eu; root=$(echo /opt/trina-ax/kit/app/*/root); \
     if [ ! -f "$root/packages.sh" ]; then \
       [ -z "$TRINA_AX_PACKAGE_GROUPS" ] || { echo "TRINA_AX_PACKAGE_GROUPS (HTML to PDF) needs a kit 0.5.0-beta.1 or newer; this kit is $(cat /opt/trina-ax/kit/VERSION)" >&2; exit 1; }; \
+      [ -f "$root/../deps.txt" ] || { echo "this kit has neither root/packages.json nor deps.txt" >&2; exit 1; }; \
       deps=$(sed -e 's/#.*//' -e 's/[[:space:]]//g' -e 's/>=.*//' "$root/../deps.txt" | grep -v '^$'); \
-      test -n "$deps" || { echo "this kit has neither root/packages.json nor deps.txt" >&2; exit 1; }; \
       apt-get update -qq; \
       DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends $deps procps passwd python3 >/dev/null; \
       rm -rf /var/lib/apt/lists/*; exit 0; \

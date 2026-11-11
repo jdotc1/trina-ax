@@ -48,7 +48,7 @@ for _ in $(seq 1 120); do
   st=$(docker inspect -f '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$CID")
   case "$st" in "running healthy") break ;; exited*|dead*) fail "container stopped: $st" ;; esac
   # a host problem (entrypoint host_stop): the container waits with its message; no need to wait 10 minutes
-  docker logs "$CID" 2>&1 | grep -q 'the server does not start until this is fixed' && fail "the container stopped at a host check"
+  grep -q 'the server does not start until this is fixed' <<<"$(docker logs "$CID" 2>&1)" && fail "the container stopped at a host check"
   sleep 5
 done
 [ "$st" = "running healthy" ] || fail "not healthy after 10 minutes ($st)"
