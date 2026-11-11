@@ -64,7 +64,7 @@ describe('a project whose restricted folder is in the trash', () => {
     expect(managed).toMatchObject({ name: 'Secret plan', inTrash: true, member: false, instructions: '' })
     expect(JSON.stringify(managed)).not.toContain(CANARY)
     expect(JSON.stringify(await h.api('carol').call(API.listProjects, { query: { manage: '1' } }))).not.toContain(CANARY)
-    expect(await status(h.api('carol').call(API.updateProject, { params: { id: p.id }, body: { instructions: 'mine now' } }))).toBe(403)
+    expect(await status(h.api('carol').call(API.updateProject, { params: { id: p.id }, body: { instructions: 'mine now' } }))).toBe(409) // project_in_trash: its instructions nobody's while there
     expect(h.rt().projectForChat(p.id, h.ctx.files.principal('carol'))).toBeNull()
 
     // it holds no path meanwhile: alice's own new project on a new shared/secret is hers, and names nothing of it
