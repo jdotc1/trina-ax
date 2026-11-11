@@ -19875,7 +19875,7 @@ Replaces "K — Knowledge graph" (2026-11-06), "지식 그래프로 더 빠른 �
 넣을 곳: trina-ax core (`server/src/policy/access.ts`, `policy/zone.ts`, `chat/projects.ts`, `chat/shared.ts`,
 `chat/project-access.ts`, `chat/project-members.ts`, `chat/project-joins.ts`, `chat/members-only-once.ts`,
 `routes/chats.ts`, `routes/admin.ts`, `admin/*`, `team-files/service.ts`, `files/search.ts`, `devenv/srt/access.ts`,
-`chat/read-scope.ts`, `skills/changes.ts`, `knowledge-graph/service.ts`, `system/export.ts`, migration 339, the
+`chat/read-scope.ts`, `skills/changes.ts`, `knowledge-graph/service.ts`, `system/export.ts`, migration 284, the
 project, files and admin screens), 이유: permissions, files, projects and chats are core. Plan:
 `docs/AGENTS/plan/20261110-1648-project-members-only.md` (a security and a product review before building).
 
@@ -19902,7 +19902,7 @@ only with the group "leads" (3 people) said "5 people see it": the owner and an 
   as one row, "Members only". `projects/` itself never moves, is never renamed or trashed, and a project's folder never
   leaves it. Whoever starts to read a project by any path (Add me, the members dialog, the AI's card, a group they were
   added to, a new account in one of its groups) leaves a `project.member_gained` audit row (`self` when they did it)
-  and its members a quiet inbox notice ("{who} joined '{name}'", migration 339 `project_notices`).
+  and its members a quiet inbox notice ("{who} joined '{name}'", migration 284 `project_notices`).
 - **What admins no longer see:** paths inside a project they do not read are cut to `projects/<name>/…` in the
   activity log (also tool summaries, instructions changes and dev environment commands), skill changes and their
   notices, the knowledge graph status and every admin answer that names folders; the owner's export leaves them out.
@@ -19945,4 +19945,4 @@ only with the group "leads" (3 people) said "5 people see it": the owner and an 
   none of them on any route) and `projects/falcon` no longer theirs, the matrix case for restore; the unit suites of the
   touched areas; web unit and e2e of the project, files, admin and shared-chat screens.
 - Version impact: **minor** (the owner and admins lose a kind of access; delete changes; new optional fields, a route
-  and migration 339 add-only).
+  and migration 284 add-only).

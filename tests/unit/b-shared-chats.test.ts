@@ -119,9 +119,10 @@ describe('the project setting', () => {
     const atlas = { id: legacyProject(db(), h.team, 'dana', { name: 'Atlas', folderPath: 'projects/atlas', instructions: '' }) }
     db().query("UPDATE projects SET trashed_with = 'trash-1' WHERE id = ?").run(atlas.id)
     // a project in the trash: nobody reads it, the owner included (docs/DECISIONS.md "Project contents only for
-    // members"), so turning sharing on is refused before the trash is looked at, and nothing changes
+    // members"); the owner may still manage it (rename, restore, delete), so turning sharing on is refused as a
+    // project in the trash, and nothing changes
     const t = await errOf(h.api('dana').call(API.updateProject, { params: { id: atlas.id }, body: { shareChats: true } }))
-    expect(t.status).toBe(403)
+    expect([t.status, t.body.params?.reason]).toEqual([409, 'project_in_trash'])
     expect(db().query('SELECT share_chats FROM projects WHERE id = ?').get(atlas.id)).toEqual({ share_chats: 0 })
     db().query('DELETE FROM projects WHERE id = ?').run(atlas.id)
   })

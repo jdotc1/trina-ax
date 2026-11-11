@@ -39,6 +39,10 @@ const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 
 /** The skill folders and files of these tests, on top of the fixture. */
 function setup(db: import('bun:sqlite').Database, team: string) {
   const put = (rel: string, data: string | Uint8Array) => { const p = path.join(team, ...rel.split('/')); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, data) }
+  // on a case-sensitive disk (Linux) the fixture adds 'groups/Marketing' beside 'groups/marketing' for its case tests;
+  // here groups/marketing is renamed and named back, which that sibling refuses as almost the same name, so it goes
+  // (readdir names it only where it is a folder of its own, never on a disk that folds case)
+  if (fs.readdirSync(path.join(team, 'groups')).includes('Marketing')) fs.rmSync(path.join(team, 'groups', 'Marketing'), { recursive: true })
   for (const g of ['marketing', 'finance']) db.query('UPDATE groups SET folder_id = (SELECT id FROM folders WHERE path = ?) WHERE id = ?').run(`groups/${g}`, g)
   db.query('INSERT INTO projects (id, name, folder_path, created_by, created_at) VALUES (?,?,?,?,?)').run(FALCON, 'Falcon', 'projects/falcon', 'alice', new Date().toISOString())
   for (const f of ['projects/falcon', 'projects/falcon/public']) db.query("INSERT INTO folder_rules (id, folder_id, subject_type, subject_id, access) VALUES (?, (SELECT id FROM folders WHERE path = ?), 'user', 'carol', 'write')").run(`r_carol_${f.replace(/\W/g, '_')}`, f)

@@ -358,7 +358,7 @@ defaults the owner may change (DECISIONS "Project contents only for members"). W
   save folder or a source under `projects/` (same effect, no change to the fingerprint).
 - **Making a folder directly in `projects/`** needs no new 409: the engine already refuses it (no rule there for an
   admin's new name); the Files screen hides New folder and Upload there.
-- **The joined notice** is stored (migration 339 `project_notices`, add-only), so a notice is never lost to an offline
+- **The joined notice** is stored (migration 284 `project_notices`, add-only), so a notice is never lost to an offline
   member; it covers every path (Add me, members dialog, AI card, group changes, new accounts).
 - **#341 (`fix/members-count-apart`) landed first.** Its split stays; for projects its role part is 0 and the project
   role lines are gone; its changes note was trimmed to the folder chip.
