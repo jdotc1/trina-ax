@@ -1,6 +1,6 @@
 - **A project's files and chats are now for its members only.** The owner and admins no longer open a team project just because of their position. They still see every project in Projects (its name, who made it, how many members it has), change its members, rename it, delete it and bring it back. To open one, an admin adds themselves with **Add me**; the project's members see that they joined, and it is in the activity log. Folders like Shared, department folders and team skills stay as they were.
 - Projects made before 2026-11-09 outside the Projects folder are not changed: the owner and admins can still see them, and their page says so.
-- Deleting a team project now moves it to the trash with its files and chats. The owner or an admin can restore it from its page, or delete it for good.
+- Deleting a team project now moves it to the trash. Until the owner or an admin restores it from its page, its members can't open its files or shared chats. The owner or an admin can also delete it for good, with its files.
 - Member counts of projects count members only ("Members · 3"), without the owner and admins.
 - Admin › Folder permissions shows project folders as **Members only**; their members are changed on the project's page.
 - When someone joins a project (also by being added to one of its departments), its members get a quiet notice in their inbox.

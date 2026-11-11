@@ -18,7 +18,7 @@ import AiAccessBanner from '../components/chat/AiAccessBanner'
 import { isNoAiReason } from '../lib/aiAccess'
 import { ResultSuggestion } from '../components/onboarding/ResultSuggestion'
 import { ChevronLeft, Globe, Loader2, RotateCcw, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { chatErrorReason, uuidv7, type Attachment, type Chat, type EngineId } from '@mycel/shared/api'
 import { api, API, errorText, isApiError } from '../lib/api'
@@ -56,6 +56,9 @@ import { Button, EmptyState, ErrorNote, IconButton, Skeleton, confirmDialog, use
 import { Tooltip } from '../components/Tooltip'
 import { FileDropZone } from '../components/FileDropZone'
 import { AiMark } from '../components/rooms/AiFace'
+
+/** Where a link goes inside a translated sentence ({projects} in chat.notFoundManage): split there. */
+const SLOT = '\u0000'
 
 export default function ChatPage() {
   const { chatId } = useParams()
@@ -334,7 +337,17 @@ function ChatView({ chatId }: { chatId: string }) {
               nothing about this one */}
           {isAdmin(me) && (
             <p className="mb-1" data-testid="chat-not-found-manage">
-              {t('chat.notFoundManage')}
+              {/* "Projects" is the way there (a phone has no back button here) */}
+              {t('chat.notFoundManage', { projects: SLOT }).split(SLOT).map((part, i) => (
+                <Fragment key={i}>
+                  {i > 0 && (
+                    <Link to="/projects" className="font-medium text-accent-text underline" data-testid="chat-not-found-projects">
+                      {t('projects.title')}
+                    </Link>
+                  )}
+                  {part}
+                </Fragment>
+              ))}
             </p>
           )}
           <Link to="/" className="mt-1 inline-block font-medium text-accent-text underline">

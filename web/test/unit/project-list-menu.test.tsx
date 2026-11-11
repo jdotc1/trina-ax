@@ -11,7 +11,7 @@
 //   see) just leaves the list, and my chats keep it, as the server does.
 // - members only (docs/DECISIONS.md "Project contents only for members"): the list asks with manage=1; the owner's or
 //   an admin's card of a project they are not in has 이름 바꾸기, 멤버 and 삭제 (Project.canManage), no "not a member" tag;
-//   a team project nobody active is in says "활동 중인 멤버 없음"; deleting a team project in projects/ moves it to the
+//   a team project nobody active is in says "남은 멤버 없음"; deleting a team project in projects/ moves it to the
 //   trash (its own confirm, the card stays and says so), and deleting one in the trash is for good.
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test'
 import { MemoryRouter } from 'react-router-dom'
@@ -308,13 +308,13 @@ describe('members only (docs/DECISIONS.md "Project contents only for members")',
     }
   })
 
-  test('a team project nobody active is in: "활동 중인 멤버 없음" in place of a count; one in the trash says so', async () => {
+  test('a team project nobody active is in: "남은 멤버 없음" in place of a count; one in the trash says so', async () => {
     list = [...list, outside({ id: ORPHAN, name: 'Acme old', folderPath: 'projects/acme-old', audience: 0 }), project(TRASHED, 'Acme gone', { folderPath: 'projects/acme-gone', member: false, canEdit: false, canManage: true, inTrash: true, audience: 0 })]
     const m = await page()
     try {
       await m.until(() => cards(m).length === 5, 'the cards')
       expect(within(card(m, 'Acme old'), 'project-card-state')!.textContent).toBe(` · ${ko('projects.noMembers')}`)
-      expect(ko('projects.noMembers')).toBe('활동 중인 멤버 없음')
+      expect(ko('projects.noMembers')).toBe('남은 멤버 없음')
       expect(within(card(m, 'Acme gone'), 'project-card-state')!.textContent).toBe(` · ${ko('chat.project.inTrash')}`)
       // a personal project with nobody else: nothing said
       expect(within(card(m, 'Acme launch'), 'project-card-state')).toBeNull()
@@ -334,6 +334,9 @@ describe('members only (docs/DECISIONS.md "Project contents only for members")',
       expect(dialog.textContent).toContain(ko('projects.trashTitle', { name: 'Acme legal' }))
       expect(ko('projects.trashTitle', { name: 'Acme legal' })).toBe("'Acme legal'을(를) 휴지통으로 옮길까요?")
       expect(dialog.textContent).toContain(ko('projects.trashBody'))
+      // what happens, not "its files and chats go with it" (an admin's own chats there stay where they are)
+      expect(ko('projects.trashBody')).toBe('팀장이나 관리자가 되돌릴 때까지 멤버도 파일과 공유 채팅을 열 수 없어요.')
+      expect(translate('en', 'projects.trashBody')).toBe("Members can't open its files or shared chats until the owner or an admin restores it.")
       expect(m.get('dialog-confirm').textContent).toBe(ko('files.moveToTrash'))
       // no checkbox to choose the folder: it always goes with the project
       expect(m.find('project-delete-trash-folder')).toBeNull()

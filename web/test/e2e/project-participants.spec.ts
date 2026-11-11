@@ -144,7 +144,7 @@ test('a member makes a team project with a person, then adds one more: the confi
   await b.getByTestId('project-menu').click()
   await b.getByTestId('project-delete').click()
   await expect(b.getByRole('dialog')).toContainText("'주간 보고'을(를) 휴지통으로 옮길까요?")
-  await expect(b.getByRole('dialog')).toContainText('파일과 채팅도 함께 옮겨져요. 팀장이나 관리자가 되살릴 수 있어요.')
+  await expect(b.getByRole('dialog')).toContainText('팀장이나 관리자가 되돌릴 때까지 멤버도 파일과 공유 채팅을 열 수 없어요.')
   await expect(b.getByTestId('project-delete-trash-folder')).toHaveCount(0)
   await b.getByTestId('dialog-confirm').click()
   await expect(b).toHaveURL(/\/projects$/)
@@ -234,7 +234,7 @@ test('members only: another setting of the folder goes with ×, those inside the
   await expect(d).toBeVisible()
   // the one on the folder itself: × ; inside: counted only (the owner is no member), never named
   await expect(page.getByTestId('project-other-rule-user-jiwoo')).toContainText('이지우')
-  await expect(page.getByTestId('project-other-rules-hidden')).toHaveText('안쪽 폴더 2개는 따로 정해져 있어요')
+  await expect(page.getByTestId('project-other-rules-hidden')).toHaveText('안쪽 폴더 2개는 볼 수 있는 사람이 따로 정해져 있어요')
   await expect(d).not.toContainText('계약')
   await expect(d).not.toContainText('여기서는 바꿀 수 없어요.')
   await expect(d).not.toContainText('폴더 권한에서 보기')

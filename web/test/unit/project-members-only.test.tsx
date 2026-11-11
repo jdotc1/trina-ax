@@ -7,8 +7,9 @@
 // - Add me: the app's confirm ("Add yourself to '…'?", "Members will see that you joined.", Add me / Cancel), then the
 //   members as they are (not the creator row) plus me with the rules hash; the page loads again as a member's, without
 //   manage; a change by someone else meanwhile (409 rules_changed) says so and loads the page again;
-// - in the trash: the note with Restore (POST …/restore; its folder purged: the server's words) and Delete for good;
-// - a chat that is not found tells the owner and admins, and only them, that they can add themselves from Projects.
+// - in the trash: the note with Restore (POST …/restore; its folder purged: the server's words, and Restore goes) and
+//   Delete for good ("Its files are deleted too…"), and no name menu;
+// - the trash and Delete for good confirms say only what happens (members can't open its files or shared chats).
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { Me, Project } from '@mycel/shared/api'
@@ -154,7 +155,7 @@ describe('Add me', () => {
       expect(dialogText(m)).toContain("Add yourself to 'Acme legal'?")
       expect(m.get('project-add-me-confirm').textContent).toBe('Members will see that you joined.')
       expect(translate('ko', 'projects.addMeTitle', { name: 'Acme legal' })).toBe("'Acme legal'에 나를 추가할까요?")
-      expect(translate('ko', 'projects.addMeBody')).toBe('멤버들에게 내가 들어온 것이 보여요.')
+      expect(translate('ko', 'projects.addMeBody')).toBe('멤버들에게 내가 들어왔다고 알려요.')
       expect(m.get('dialog-confirm').textContent).toBe('Add me')
       // cancel: nothing asked or saved
       const cancel = m.get('dialog-confirm').parentElement!.querySelector('button')!
@@ -198,15 +199,13 @@ describe('Add me', () => {
 })
 
 describe('in the trash', () => {
-  test('the note with Restore and Delete for good; Restore brings it back; its folder purged: the server\'s words', async () => {
+  test('the note with Restore and Delete for good, no name menu; Restore brings it back', async () => {
     signedIn('owner')
     let restored = false
-    let purged = false
     routes = {
       [`GET /api/projects/${P1}`]: () => json(200, restored ? outside() : outside({ inTrash: true, audience: 0, membersEditable: false })),
       'GET /api/chats': () => json(200, { items: [], nextCursor: null }),
       [`POST /api/projects/${P1}/restore`]: () => {
-        if (purged) return json(409, { error: { code: 'conflict', message: "This project's folder was deleted for good, so it can't come back. You can delete the project.", params: { reason: 'project_folder_purged' } } })
         restored = true
         return json(200, outside())
       },
@@ -219,15 +218,48 @@ describe('in the trash', () => {
       expect(m.get('project-delete-for-good').textContent).toBe(en('projects.deleteForGood'))
       expect(m.find('project-members')).toBeNull()
       expect(m.find('composer-input')).toBeNull()
-      // purged meanwhile: the server's words
-      purged = true
-      await m.click('project-restore')
-      await m.until(() => useUi.getState().toasts.some((x) => x.text.startsWith("This project's folder was deleted for good")), 'the words', 2000)
-      expect(m.find('project-in-trash')).not.toBeNull()
-      purged = false
+      // no Delete or Rename beside Delete for good: the name is plain text
+      expect(m.find('project-menu')).toBeNull()
+      expect(m.get('project-topline').textContent).toContain('Acme legal')
       await m.click('project-restore')
       await m.until(() => m.find('project-members-only'), 'back, as one I manage', 2000)
       expect(m.find('project-in-trash')).toBeNull()
+      // out of the trash: the name's menu again
+      expect(await menuItems(m)).toEqual(['project-rename', 'project-delete'])
+    } finally { await m.unmount() }
+  })
+
+  test('its folder purged meanwhile: the server\'s words, and Restore goes (it would only be refused again); Delete for good stays', async () => {
+    signedIn('admin')
+    routes = {
+      [`GET /api/projects/${P1}`]: () => json(200, outside({ inTrash: true, audience: 0, membersEditable: false })),
+      'GET /api/chats': () => json(200, { items: [], nextCursor: null }),
+      [`POST /api/projects/${P1}/restore`]: () => json(409, { error: { code: 'conflict', message: "This project's folder was deleted for good, so it can't come back. You can delete the project.", params: { reason: 'project_folder_purged' } } }),
+    }
+    const m = await page()
+    try {
+      await m.click(await m.until(() => m.find('project-restore'), 'Restore', 2000))
+      await m.until(() => useUi.getState().toasts.some((x) => x.text.startsWith("This project's folder was deleted for good")), 'the words', 2000)
+      await m.until(() => !m.find('project-restore'), 'Restore gone', 2000)
+      expect(m.find('project-in-trash')).not.toBeNull()
+      expect(m.find('project-delete-for-good')).not.toBeNull()
+      expect(calls(`POST /api/projects/${P1}/restore`)).toHaveLength(1)
+    } finally { await m.unmount() }
+  })
+
+  test('another refusal of Restore keeps it there to try again', async () => {
+    signedIn('owner')
+    routes = {
+      [`GET /api/projects/${P1}`]: () => json(200, outside({ inTrash: true, audience: 0, membersEditable: false })),
+      'GET /api/chats': () => json(200, { items: [], nextCursor: null }),
+      [`POST /api/projects/${P1}/restore`]: () => json(503, { error: { code: 'unavailable', message: 'Try again in a moment.' } }),
+    }
+    const m = await page()
+    try {
+      await m.click(await m.until(() => m.find('project-restore'), 'Restore', 2000))
+      await m.until(() => useUi.getState().toasts.some((x) => x.text === 'Try again in a moment.'), 'the words', 2000)
+      await m.settle(30)
+      expect(m.find('project-restore')).not.toBeNull()
     } finally { await m.unmount() }
   })
 
@@ -246,7 +278,8 @@ describe('in the trash', () => {
       await m.click(button)
       await m.until(() => m.find('dialog-confirm'), 'the confirm', 2000)
       expect(dialogText(m)).toContain("Delete 'Acme legal' for good?")
-      expect(dialogText(m)).toContain("This can't be undone.")
+      expect(dialogText(m)).toContain("Its files are deleted too. This can't be undone.")
+      expect(translate('ko', 'projects.deleteForGoodBody')).toBe('파일도 함께 지워지고 되돌릴 수 없어요.')
       expect(translate('ko', 'projects.deleteForGoodTitle', { name: '주간 보고' })).toBe("'주간 보고'을(를) 완전히 삭제할까요?")
       await m.click('dialog-confirm')
       await m.until(() => m.find('elsewhere'), 'the list', 2000)

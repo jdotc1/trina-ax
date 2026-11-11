@@ -289,7 +289,7 @@ test.describe('phone', () => {
 })
 
 // docs/DECISIONS.md "Project contents only for members"
-test('a team project\'s folder for its members and the owner: its members\' count, "Members only", no rules editor', async ({ page }) => {
+test('a team project\'s folder for its members and the owner: its members\' count, each person a member or not, no rules editor', async ({ page }) => {
   await signIn(page)
   const made = await page.request.post('/api/projects', { headers: { [CSRF_HEADER]: '1' }, data: { name: 'Kite', participants: [{ subjectType: 'user', subjectId: 'bob' }] } })
   const p = (await made.json()) as { folderPath: string }
@@ -300,8 +300,18 @@ test('a team project\'s folder for its members and the owner: its members\' coun
   await chip(page).click()
   await expect(page.getByTestId('folder-access-headline')).toHaveText(en('folderAccess.people', { n: 2 }))
   await expect(page.getByTestId('folder-access-headline')).not.toContainText(t['accessTree.who.adminsOnly'])
-  await expect(page.getByTestId('folder-access-members-only')).toHaveText(t['accessTree.membersOnly'])
+  // said once, by the panel's own lines and its Members button: no lone "Members only", no way to Folder permissions
+  // (it only says "Members only" there), no rules editor
+  await expect(page.getByTestId('folder-access-project')).toBeVisible()
+  await expect(page.getByTestId('folder-access-members-only')).toHaveCount(0)
+  await expect(page.getByTestId('folder-access-all')).toHaveCount(0)
   await expect(page.getByTestId('folder-access-change')).toHaveCount(0)
+  // each person: a member or not, never the setting that decided
+  const reason = (name: string) => page.getByTestId('folder-access-admin').getByTestId('folder-person').filter({ hasText: name }).getByTestId('folder-person-reason')
+  await expect(reason('Bob')).toHaveText(t['accessView.why.member'])
+  await expect(reason('Olga')).toHaveText(t['accessView.why.member'])
+  await expect(reason('Dana')).toHaveText(t['accessView.why.notMember'])
+  await expect(page.getByTestId('folder-access-admin')).not.toContainText(t['rules.everyone'])
 })
 
 test('the projects folder takes no new folder or upload; a project\'s folder the owner is not in opens the project\'s page', async ({ page }) => {
@@ -313,6 +323,11 @@ test('the projects folder takes no new folder or upload; a project\'s folder the
   await expect(page.getByTestId('new-folder-button')).toHaveCount(0)
   await expect(page.getByTestId('upload-button')).toHaveCount(0)
   await expect(page.getByTestId('folder-upload-button')).toHaveCount(0)
+  // its row: "Members only", the words of Folder permissions, not "pass-through only" (a click opens its page)
+  await expect(row(page, 'falcon').getByTestId('members-only')).toHaveText(t['accessTree.membersOnly'])
+  await expect(row(page, 'falcon').getByTestId('pass-through')).toHaveCount(0)
+  await row(page, 'falcon').getByRole('button', { name: 'falcon' }).click()
+  await expect(page).toHaveURL(new RegExp(`/projects/${id}$`))
   // not hers to read: its page, where she can add herself, not "folder not found"; a folder inside it too
   for (const path of ['projects/falcon', 'projects/falcon/drafts']) {
     await page.goto(`/files?path=${encodeURIComponent(path)}`)

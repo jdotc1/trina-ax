@@ -1326,7 +1326,9 @@ function FolderDetail({ node: n, members, row, rowsReady, names, subject, reload
               {t('accessTree.markerHint')}
             </p>
           )}
-          <div className="mt-4">
+          {/* a team project's folder: no settings of its own here (they cannot be changed on this screen; its members
+              are, on its page) */}
+          {!membersOnly && <div className="mt-4">
             <h4 className="text-xs font-semibold text-muted">{t('accessTree.ownRules')}</h4>
             {rules.length ? (
               <RuleBadges rules={rules} path={n.path} subject={subject} />
@@ -1351,7 +1353,7 @@ function FolderDetail({ node: n, members, row, rowsReady, names, subject, reload
                 {keep}
               </p>
             )}
-          </div>
+          </div>}
           {riskTexts(t, n, true).map((r) => (
             <p key={r} role="note" className="mt-3 flex items-start gap-1.5 rounded-lg bg-warn-soft px-3 py-2 text-xs text-warn" data-testid="folder-detail-risk">
               <TriangleAlert size={13} className="mt-px shrink-0" aria-hidden />

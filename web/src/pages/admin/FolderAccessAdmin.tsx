@@ -3,9 +3,10 @@
 // inside carry rules of their own, the people by name as Admin › Folder permissions lists them (FolderPeople.tsx), and
 // the way to that page, and [규칙 바꾸기]: Admin's own edit panel for this folder, which comes back here when it closes
 // (AccessTree's `from=files`). Loaded for admins only, and every answer here is from an admin endpoint the server
-// refuses to members. A team project's folder in projects/ says "멤버만" where the source would be: its members decide,
-// on the project's page, and the owner and admins see it only as members (docs/DECISIONS.md "Project contents only for
-// members").
+// refuses to members. A team project's folder in projects/ has no source line, no count of folders inside and no way to
+// Folder permissions: the panel's own lines above already say its members decide, on the project's page, and Folder
+// permissions only says "Members only" there (docs/DECISIONS.md "Project contents only for members"). Its people say
+// "Member" or "Not a member" (lib/access-view.ts).
 import { useEffect, useMemo, useState } from 'react'
 import { SlidersHorizontal } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -22,11 +23,13 @@ export default function FolderAccessAdmin({ path, self, ready, change, onLeave }
   const t = useT()
   const navigate = useNavigate()
   const answer = useFolderAnswer(path, 0)
+  const project = isProjectsFolder(path)
   /** folders inside with rules of their own (the tree's "rule folders only" list, the folder itself left out) */
   const [below, setBelow] = useState<number | null>(null)
   useEffect(() => {
     let live = true
     setBelow(null)
+    if (project) return
     api.call(API.explainAccessTree, { query: { path, rules: '1', limit: 1 } }).then(
       (r) => live && setBelow(Math.max(0, (r.levels[0]?.total ?? 0) - (r.self.rules > 0 ? 1 : 0))),
       () => {},
@@ -34,7 +37,7 @@ export default function FolderAccessAdmin({ path, self, ready, change, onLeave }
     return () => {
       live = false
     }
-  }, [path])
+  }, [path, project])
   // the names the reasons need: the people and groups whose rules decided here are the ones the tree row names
   const names: Names = useMemo(() => {
     const by = new Map<string, string>()
@@ -44,16 +47,12 @@ export default function FolderAccessAdmin({ path, self, ready, change, onLeave }
   if (!ready) return <Skeleton lines={4} />
   return (
     <div className="space-y-2" data-testid="folder-access-admin">
-      {isProjectsFolder(path) ? (
-        <p className="text-sm text-muted" data-testid="folder-access-members-only">
-          {t('accessTree.membersOnly')}
-        </p>
-      ) : self && sourceSaysSomething(self.self) && (
+      {!project && self && sourceSaysSomething(self.self) && (
         <p className="text-sm text-muted" data-testid="folder-access-source">
           {sourceText(t, self.self, self.members)}
         </p>
       )}
-      {!!below && (
+      {!project && !!below && (
         <p className="text-sm">
           <Link to={`/admin/folders?folder=${encodeURIComponent(path)}`} onClick={onLeave} className="text-accent-text underline-offset-2 hover:underline" data-testid="folder-access-below">
             {t('folderAccess.below', { n: below })}
@@ -73,11 +72,13 @@ export default function FolderAccessAdmin({ path, self, ready, change, onLeave }
         </Button>
       )}
       <People answer={answer} path={path} names={names} linkPeople />
-      <p className="pt-1 text-sm">
-        <Link to={`/admin/folders?folder=${encodeURIComponent(path)}`} onClick={onLeave} className="text-accent-text underline-offset-2 hover:underline" data-testid="folder-access-all">
-          {t('folderAccess.all')}
-        </Link>
-      </p>
+      {!project && (
+        <p className="pt-1 text-sm">
+          <Link to={`/admin/folders?folder=${encodeURIComponent(path)}`} onClick={onLeave} className="text-accent-text underline-offset-2 hover:underline" data-testid="folder-access-all">
+            {t('folderAccess.all')}
+          </Link>
+        </p>
+      )}
     </div>
   )
 }

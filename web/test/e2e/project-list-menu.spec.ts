@@ -217,7 +217,7 @@ for (const vp of [{ name: '1440', phone: false, use: { viewport: { width: 1440, 
 
 // docs/DECISIONS.md "Project contents only for members": the owner's card of a team project she is not in has Rename,
 // Members and Delete; deleting moves it to the trash (the card stays and says so), deleting again is for good; a team
-// project nobody active is in says "활동 중인 멤버 없음".
+// project nobody active is in says "남은 멤버 없음".
 for (const vp of [{ name: '1440', phone: false, use: { viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' as const } }, { name: '390', phone: true, use: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, reducedMotion: 'reduce' as const } }]) {
   test.describe(`a project the owner is not in, on the list at ${vp.name}`, () => {
     test.use(vp.use)

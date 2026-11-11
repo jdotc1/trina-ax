@@ -4,7 +4,7 @@
 // No step names of the permission function (user / group / role / everyone, owner-admin, no-rule) reach the screen.
 import type { Access, AccessTreeNode, AccessTreeWho, Folder, FolderAccessResponse, PersonAccessResponse, PersonFolderAccess, Role } from '@mycel/shared/api'
 import type { MessageKey, Params } from '../i18n'
-import { isProjectsFolder } from './projectFolders'
+import { isProjectsFolder, projectFolderOf } from './projectFolders'
 
 type T = (key: MessageKey, params?: Params) => string
 
@@ -94,9 +94,13 @@ function listedText(t: T, f: PersonFolderAccess, newPerson: boolean): string {
   return rest > 0 ? t('accessView.why.listedMore', { paths, n: rest }) : t('accessView.why.listed', { paths })
 }
 
-/** The step of the permission function that decided, in words. */
+/** The step of the permission function that decided, in words. At or inside a team project's folder
+ * (projects/<name>/…) the people who open it are its members (docs/DECISIONS.md "Project contents only for members"),
+ * the owner and admins included only as members, and its settings are changed on its page only: "Member" or "Not a
+ * member", never the setting that decided ("모두: 권한 없음") nor "only the owner and admins can open it". */
 function decidedText(t: T, f: PersonFolderAccess, role: Role, names: Names): string {
   const r = f.reason
+  if ((r.kind === 'rule' || r.kind === 'no-rule') && projectFolderOf(f.path) !== null) return t(f.access === 'none' ? 'accessView.why.notMember' : 'accessView.why.member')
   switch (r.kind) {
     case 'own-personal':
       return t(role === 'owner' ? 'accessView.why.ownPersonalOwner' : role === 'admin' ? 'accessView.why.ownPersonalAdmin' : 'accessView.why.ownPersonal')
@@ -152,8 +156,8 @@ export const manageMembersLink = (f: Pick<PersonFolderAccess, 'projects'>): stri
   return p ? `/projects/${encodeURIComponent(p.id)}?members=1` : null
 }
 
-/** Rules do not change what the owner and admins get (everything but other people's personal folders): their rows
- * offer no rule editor. */
+/** Rules do not change what the owner and admins get (everything but other people's personal folders and team projects
+ * they are not members of): their rows offer no rule editor. */
 export const rulesApply = (f: Pick<PersonFolderAccess, 'reason' | 'kinds'>) => f.reason.kind !== 'owner-admin' && !f.kinds.includes('personal')
 
 /**
@@ -249,8 +253,8 @@ function whoLabel(t: T, w: AccessTreeWho, members: number, short = false): strin
 /** The groups of people a rule lets open the folder (the owner and admins always can). */
 const seers = (n: Pick<AccessTreeNode, 'who'>) => n.who.filter((w) => w.reason === 'rule' && w.access !== 'none')
 
-/** A team project's folder: "멤버만 · 3명이 봐요" (its members, the owner and admins only as members), "멤버만 · 활동 중인
- * 멤버 없음" when nobody active is one. Never "팀장과 관리자만". */
+/** A team project's folder: "멤버만 · 3명이 봐요" (its members, the owner and admins only as members), "멤버만 · 남은 멤버
+ * 없음" when nobody active is one. Never "팀장과 관리자만". */
 export function membersOnlyText(t: T, n: Pick<AccessTreeNode, 'who'>): string {
   const count = seers(n).reduce((sum, w) => sum + w.count, 0)
   return `${t('accessTree.membersOnly')} · ${count ? t('folderAccess.people', { n: count }) : t('projects.noMembers')}`

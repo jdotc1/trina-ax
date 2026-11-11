@@ -88,8 +88,13 @@ describe('the members now', () => {
     // Admin's read rule: in the list, tagged, without ×; and in the read-only box with the rule inside
     expect(state(m, 'participant-user-jiwoo')).toBe('fixed')
     expect(m.get('participant-user-jiwoo').textContent).toContain(`${en('access.read')} · ${en('projects.folderRuleTag')}`)
+    expect(en('projects.folderRuleTag')).toBe('set separately')
+    expect(translate('ko', 'projects.folderRuleTag')).toBe('따로 정함')
     expect(m.find('participant-remove-user-jiwoo')).toBeNull()
     const other = m.get('project-other-rules').textContent ?? ''
+    // its title: who else sees it, in plain words (not "rules set in folder permissions")
+    expect(other).toContain('Others who can see it')
+    expect(translate('ko', 'projects.otherRules')).toBe('멤버 말고도 볼 수 있는 사람')
     expect(other).toContain(`Jiwoo: ${en('access.read')}`)
     expect(other).toContain(`${en('projects.ruleInside', { path: 'hr' })} · ${en('rules.everyone')}: ${en('access.none')}`)
     expect(other).not.toContain(en('projects.otherRulesLink')) // no link to the admin screen
@@ -343,6 +348,20 @@ describe('a project not changed here', () => {
       await m.unmount()
     }
   })
+
+  test('a team project whose folder is missing: what the admin can do (delete it), not a trip to Folder permissions that refuses it', async () => {
+    routes = {
+      'GET /api/people': () => json(200, PEOPLE),
+      [`GET /api/projects/${P1}/access`]: () => json(200, access({ editable: false })),
+    }
+    signedIn('admin')
+    const m = await mount(<MemoryRouter><ProjectMembersDialog project={project({ folderPath: 'projects/acme' })} onClose={() => {}} onSaved={() => {}} /></MemoryRouter>)
+    const line = await m.until(() => m.find('project-members-locked'), 'the line', 2000)
+    expect(line.textContent).toBe("This project's folder is missing, so its members can't be changed. You can delete the project.")
+    expect(translate('ko', 'projects.membersFolderMissing')).toBe('이 프로젝트의 폴더가 없어서 멤버를 바꿀 수 없어요. 프로젝트를 삭제할 수 있어요.')
+    for (const l of ['en', 'ko', 'es', 'id', 'ja'] as const) expect(translate(l, 'projects.membersFolderMissing')).not.toContain('›')
+    await m.unmount()
+  })
 })
 
 describe('members only (docs/DECISIONS.md "Project contents only for members")', () => {
@@ -404,7 +423,7 @@ describe('members only (docs/DECISIONS.md "Project contents only for members")',
     const m = await dialog()
     const line = await m.until(() => m.find('project-other-rules-hidden'), 'the count inside', 2000)
     expect(line.textContent).toBe(en('projects.insideOwn', { n: 2 }))
-    expect(translate('ko', 'projects.insideOwn', { n: 2 })).toBe('안쪽 폴더 2개는 따로 정해져 있어요')
+    expect(translate('ko', 'projects.insideOwn', { n: 2 })).toBe('안쪽 폴더 2개는 볼 수 있는 사람이 따로 정해져 있어요')
     expect(m.get('project-other-rules').textContent).not.toContain(en('projects.otherRules'))
     await m.unmount()
   })

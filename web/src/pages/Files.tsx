@@ -28,7 +28,7 @@ import { topFoldersFirst, useFolderWords } from '../lib/folderLabels'
 import { droppedEntries, planFromEntries, planFromInput, type FolderPlan } from '../lib/folderUpload'
 import { baseName, crumbs, isConflictCopy, isInside, joinPath, nameProblem, parentPath } from '../lib/paths'
 import { iconKind, previewKind, type FileIconKind } from '../lib/preview'
-import { folderProjectAction, isProjectsTop, projectFolderOf, projectsByFolder, type FolderProjectAction } from '../lib/projectFolders'
+import { folderProjectAction, isProjectsFolder, isProjectsTop, projectFolderOf, projectsByFolder, type FolderProjectAction } from '../lib/projectFolders'
 import { openTeamFile, panelExpandedNow, useSidePanel } from '../lib/sidePanel'
 import { useTeamAttach } from '../lib/useTeamAttach'
 import { cancelUpload, uploadFile } from '../lib/upload'
@@ -936,6 +936,9 @@ export default function Files() {
                           onDelete={() => void remove(e)}
                           onHistory={() => setHistory(e.path)}
                           project={folderProjectAction(e, byFolder)}
+                          // a team project's folder the owner or an admin is not a member of: a click opens its page
+                          // (toProjectPage), so it says "Members only", as Folder permissions does, not "pass-through"
+                          membersOnly={e.type === 'folder' && e.access === 'none' && isAdmin(me) && isProjectsFolder(e.path)}
                           onProject={(a) => navigate(`/projects/${a.project.id}`)}
                           onSuggest={e.type === 'file' && e.path.startsWith(`users/${me.user.id}/`) && /\.(md|txt)$/i.test(e.name) ? () => setSuggesting(e.path) : null}
                           onAccess={e.type === 'folder' && offersFolderAccess(e.path, e.access, me.user.id, byFolder.get(e.path.normalize('NFC')) ?? null) ? () => setAccessFor({ path: e.path, access: e.access }) : null}
@@ -1045,7 +1048,7 @@ function CheckBox({ checked, disabled, label, title, onCheck, inputRef, testId }
   )
 }
 
-function FileRow({ e, selected, open, checked, onCheck, pressSelect, selecting, draggable, onDragStart, onDragEnd, dragged, dropTarget, drop, onOpen, onChat, onAddToChat, chatTitle, onRename, onMove, onShare, onDelete, onHistory, project, onProject, onSuggest, onAccess }: { e: FileEntry; selected: boolean; open: boolean; checked: boolean; onCheck: (shift: boolean) => void; pressSelect: boolean; selecting: boolean; draggable: boolean; onDragStart: (ev: React.DragEvent) => void; onDragEnd: () => void; dragged: boolean; dropTarget: DropHandlers | null; drop: DropOver | null; onOpen: () => void; onChat: () => void; onAddToChat: (() => void) | null; chatTitle: string; onRename: () => void; onMove: () => void; onShare: () => void; onDelete: () => void; onHistory: () => void; project: FolderProjectAction; onProject: (a: NonNullable<FolderProjectAction>) => void; onSuggest: (() => void) | null; onAccess: (() => void) | null }) {
+function FileRow({ e, selected, open, checked, onCheck, pressSelect, selecting, draggable, onDragStart, onDragEnd, dragged, dropTarget, drop, onOpen, onChat, onAddToChat, chatTitle, onRename, onMove, onShare, onDelete, onHistory, project, membersOnly = false, onProject, onSuggest, onAccess }: { e: FileEntry; selected: boolean; open: boolean; checked: boolean; onCheck: (shift: boolean) => void; pressSelect: boolean; selecting: boolean; draggable: boolean; onDragStart: (ev: React.DragEvent) => void; onDragEnd: () => void; dragged: boolean; dropTarget: DropHandlers | null; drop: DropOver | null; onOpen: () => void; onChat: () => void; onAddToChat: (() => void) | null; chatTitle: string; onRename: () => void; onMove: () => void; onShare: () => void; onDelete: () => void; onHistory: () => void; project: FolderProjectAction; membersOnly?: boolean; onProject: (a: NonNullable<FolderProjectAction>) => void; onSuggest: (() => void) | null; onAccess: (() => void) | null }) {
   const t = useT()
   const locale = useLocale()
   const words = useFolderWords()
@@ -1056,6 +1059,9 @@ function FileRow({ e, selected, open, checked, onCheck, pressSelect, selecting, 
   // a folder that is a project the person can see shows the project icon (and says so to screen readers)
   const Icon = project?.kind === 'open' ? FolderKanban : ICONS[iconKind(e.name, folder)]
   const dim = e.access === 'none'
+  // what a dimmed row says: "Members only" on a team project's folder that opens its page, else that it is only passed
+  // through
+  const dimTitle = membersOnly ? t('projects.membersOnly') : t('files.navigationOnly')
   const writable = e.access === 'write'
   const menuId = useId()
   // phones (`pressSelect`): a long press selects the row (or takes it out of the selection), and the click that ends it
@@ -1098,7 +1104,7 @@ function FileRow({ e, selected, open, checked, onCheck, pressSelect, selecting, 
       {/* phones: seen only while something is selected (a long press starts it); until then the box is still there for
           a screen reader, and shows when the keyboard reaches it */}
       <td className={clsx('w-0 py-1 pr-0 pl-1', !selecting && 'max-md:sr-only max-md:focus-within:not-sr-only')}>
-        <CheckBox checked={checked} disabled={dim} label={t('files.select', { name: e.name })} title={dim ? t('files.navigationOnly') : undefined} onCheck={onCheck} testId="file-check" />
+        <CheckBox checked={checked} disabled={dim} label={t('files.select', { name: e.name })} title={dim ? dimTitle : undefined} onCheck={onCheck} testId="file-check" />
       </td>
       {/* w-full + max-w-0: the name column takes the room that is left and a long name ends in "…" instead of
           pushing the table wider than the screen (phones) or the space beside an open file panel */}
@@ -1135,7 +1141,7 @@ function FileRow({ e, selected, open, checked, onCheck, pressSelect, selecting, 
           onContextMenu={(ev) => (press.current || pressed.current) && ev.preventDefault()}
           // phones: a 44px row to tap, and a long press selects the row, not its text
           className="flex w-full min-w-0 items-center gap-2.5 rounded py-1 text-left hover:underline max-md:min-h-11 max-md:select-none max-md:[-webkit-touch-callout:none]"
-          title={dim ? t('files.navigationOnly') : undefined}
+          title={dim ? dimTitle : undefined}
           aria-current={open ? 'true' : undefined}
           // dragged onto a folder row or a breadcrumb: moved there (with the selection when this row is selected); a
           // file the AI may read can also be dragged into a chat's message box (attached as a team file)
@@ -1151,12 +1157,19 @@ function FileRow({ e, selected, open, checked, onCheck, pressSelect, selecting, 
           {/* a folder the person can only pass through: a visible badge (a hover title alone does not reach phones);
               screen readers get the full sentence in place of the short badge text. Phones show the row greyed out
               only (next to the folder's own "이동만" badge it read as the same thing twice); inside, that badge says it */}
-          {dim && (
+          {dim && !membersOnly && (
             <span className="shrink-0 max-md:sr-only" data-testid="pass-through">
               <Badge>
                 <Signpost size={11} aria-hidden /> <span aria-hidden>{t('files.passThroughShort')}</span>
                 <span className="sr-only">{t('files.navigationOnly')}</span>
               </Badge>
+            </span>
+          )}
+          {/* a team project's folder the owner or an admin is not a member of: the words of Folder permissions, on
+              phones too (there is no other sign that it opens the project's page) */}
+          {dim && membersOnly && (
+            <span className="shrink-0" data-testid="members-only">
+              <Badge>{t('accessTree.membersOnly')}</Badge>
             </span>
           )}
           {!folder && isConflictCopy(e.name) && <Badge tone="warn">{t('files.conflictCopy')}</Badge>}

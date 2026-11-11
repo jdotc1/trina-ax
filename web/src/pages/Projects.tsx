@@ -21,11 +21,12 @@
 // Members only (docs/DECISIONS.md "Project contents only for members"): a team project in projects/ is its members'.
 // The list and the page ask with manage=1, so the owner and admins also get the team projects they are not members of
 // (Project.member false: no instructions, files or chats of others). Their card's ⋯ has 이름 바꾸기, 멤버 and 삭제
-// (Project.canManage); a card with nobody active in it says "활동 중인 멤버 없음". Their page: the name's menu (이름 바꾸기,
+// (Project.canManage); a card with nobody active in it says "남은 멤버 없음". Their page: the name's menu (이름 바꾸기,
 // 삭제), one quiet block in place of the box, the files and the instructions ("멤버만 이 프로젝트를 열 수 있어요…" and
 // [나를 멤버로 추가]), the 멤버 row, and their own chats there. Adding themselves (or taking themselves out in the
 // members dialog) loads the page again. Deleting a team project in projects/ moves it to the trash with its folder; a
-// project in the trash says so on its page with 되돌리기 (the owner and admins) and 완전히 삭제.
+// project in the trash says so on its page with 되돌리기 (the owner and admins; gone once the server says its folder
+// was deleted for good) and 완전히 삭제, and has no name menu there.
 import { ArchiveRestore, FileText, FolderKanban, Folder, Link2, Pencil, Pin, Plus, ScrollText, Share2, Trash2, UserPlus, Users } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -363,6 +364,9 @@ export function ProjectHome() {
   const [sharing, setSharing] = useState(false)
   // 나를 멤버로 추가 or 되돌리기 under way
   const [busy, setBusy] = useState<'join' | 'restore' | null>(null)
+  // 되돌리기 refused because its folder was deleted for good from the trash meanwhile: no 되돌리기 any more (it would
+  // only be refused again), 완전히 삭제 stays
+  const [purged, setPurged] = useState(false)
   // the members dialog: 관리 on the 멤버 line, or ?members=1 (the AI's link to it)
   const [params, setParams] = useSearchParams()
   const [members, setMembersState] = useState(false)
@@ -410,6 +414,7 @@ export function ProjectHome() {
     setFiles(null)
     setMissing(false)
     setError(null)
+    setPurged(false)
     // another project's page (back and forward): no dialog of the one before
     setMembersState(false)
     setEditing(false)
@@ -479,7 +484,7 @@ export function ProjectHome() {
   }
 
   // 되돌리기: the project and its folder back from the trash (the owner and admins; its folder purged meanwhile: the
-  // server's words, 409 project_folder_purged)
+  // server's words, 409 project_folder_purged, and 되돌리기 goes)
   const restore = async () => {
     if (!p || busy) return
     setBusy('restore')
@@ -489,6 +494,7 @@ export function ProjectHome() {
       setP(r)
       load()
     } catch (e) {
+      if (isApiError(e, 'conflict') && e.body.params?.reason === 'project_folder_purged') setPurged(true)
       toast({ level: 'error', text: errorText(e, locale, t('error.network')) })
     } finally {
       setBusy(null)
@@ -513,20 +519,23 @@ export function ProjectHome() {
   const sideAction = 'rounded-md px-1.5 py-1 text-muted hover:bg-hover hover:text-ink'
   // a team project in place has members (a personal one is mine alone; one in the trash is nobody's until restored)
   const hasMembers = !p.folderPath.startsWith('users/') && !p.inTrash
-  const menu = outside
-    ? mayManage(p)
-      ? [
-          { label: t('chat.rename'), icon: <Pencil size={14} aria-hidden />, onSelect: () => void rename(), testId: 'project-rename' },
-          { label: t('common.delete'), icon: <Trash2 size={14} aria-hidden />, onSelect: () => void del(), danger: true, testId: 'project-delete' },
-        ]
-      : null
-    : p.canEdit
-      ? [
-          { label: t('common.edit'), icon: <Pencil size={14} aria-hidden />, onSelect: () => setEditing(true), testId: 'project-edit' },
-          ...(personal ? [{ label: t('projects.share'), icon: <Share2 size={14} aria-hidden />, onSelect: () => setSharing(true), testId: 'project-share' }] : []),
-          { label: t('common.delete'), icon: <Trash2 size={14} aria-hidden />, onSelect: () => void del(), danger: true, testId: 'project-delete' },
-        ]
-      : null
+  // in the trash: no name menu (its note has 되돌리기 and 완전히 삭제; renaming it is not needed there)
+  const menu = p.inTrash
+    ? null
+    : outside
+      ? mayManage(p)
+        ? [
+            { label: t('chat.rename'), icon: <Pencil size={14} aria-hidden />, onSelect: () => void rename(), testId: 'project-rename' },
+            { label: t('common.delete'), icon: <Trash2 size={14} aria-hidden />, onSelect: () => void del(), danger: true, testId: 'project-delete' },
+          ]
+        : null
+      : p.canEdit
+        ? [
+            { label: t('common.edit'), icon: <Pencil size={14} aria-hidden />, onSelect: () => setEditing(true), testId: 'project-edit' },
+            ...(personal ? [{ label: t('projects.share'), icon: <Share2 size={14} aria-hidden />, onSelect: () => setSharing(true), testId: 'project-share' }] : []),
+            { label: t('common.delete'), icon: <Trash2 size={14} aria-hidden />, onSelect: () => void del(), danger: true, testId: 'project-delete' },
+          ]
+        : null
   return (
     <div className="flex h-full flex-col overflow-y-auto">
       {/* like Claude's project page: where you are, with the few things you rarely do behind the name; it stays at the
@@ -563,7 +572,7 @@ export function ProjectHome() {
                 can do; a project I manage without being a member: one quiet block in place of the box */}
             {p.inTrash ? (
               <ProjectTrashNote project={p}>
-                {isAdmin(me) && (
+                {isAdmin(me) && !purged && (
                   <Button size="sm" busy={busy === 'restore'} onClick={() => void restore()} data-testid="project-restore">
                     <ArchiveRestore size={14} aria-hidden /> {t('common.restore')}
                   </Button>
@@ -668,7 +677,7 @@ export function ProjectHome() {
 }
 
 /** The 멤버 line of a team project's page: who sees it. A team project in projects/ is its members' (docs/DECISIONS.md
- * "Project contents only for members"): "나만 봐요" when I am its only member, else how many ("3명"; "활동 중인 멤버 없음"
+ * "Project contents only for members"): "나만 봐요" when I am its only member, else how many ("3명"; "남은 멤버 없음"
  * when nobody active is one), also for the owner or an admin who is not a member. A project made before outside
  * projects/ (the owner and admins see it by their role) says it in the words and by the rule of the line under the box
  * (components/chat/WhoSees.tsx whoSeesText, docs/DECISIONS.md "Who sees it, always"): "나만 봐요", "나와 관리자만 봐요"
