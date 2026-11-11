@@ -163,10 +163,12 @@ describe('the steps that run once at the first start', () => {
     expect(db.query('SELECT 1 FROM folder_rules WHERE id = ?').get(rid)).toBeNull()
     expect((db.query('SELECT save_lapse_reason FROM schedules WHERE id = ?').get(sid) as { save_lapse_reason: string }).save_lapse_reason).toBe('rules')
     expect(db.query("SELECT 1 FROM audit_log WHERE action = 'projects.members_only'").get()).not.toBeNull()
-    // the leftover folder became a project of its own the owner and admins manage
+    // the leftover folder becomes a project of its own when an admin opens the projects they manage (not at start)
+    expect(db.query("SELECT 1 FROM projects WHERE folder_path = 'projects/Left over'").get()).toBeNull()
+    const m = await h.api('carol').call(API.listProjects, { query: { manage: '1' } })
     const adopted = db.query("SELECT name, created_by FROM projects WHERE folder_path = 'projects/Left over'").get() as { name: string; created_by: string | null } | null
     expect(adopted).toEqual({ name: 'Left over', created_by: null })
-    const m = await h.api('carol').call(API.listProjects, { query: { manage: '1' } })
+    expect(db.query("SELECT 1 FROM audit_log WHERE action = 'project.adopted' AND target = 'projects/Left over'").get()).not.toBeNull()
     expect(m.items.some((x) => x.folderPath === 'projects/Left over' && x.membersEditable)).toBe(true)
     // once: a role rule made after it stays (a second start does nothing)
     db.query("INSERT INTO folder_rules (id, folder_id, subject_type, subject_id, access) VALUES (?, ?, 'role', 'admin', 'read')").run(rid, folder.id)

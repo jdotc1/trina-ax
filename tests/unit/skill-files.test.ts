@@ -104,8 +104,6 @@ describe('the plan and the file service (M2, M3, M4, M5, M10)', () => {
     // this build's one-time start steps (chat/members-only-once.ts) make a project of every projects/<name> folder that no
     // project uses, when they run (after the start, in their own time): the fixture's falcon is this suite's own
     // project (made below, as before that build), so the one the steps made for it goes, once the steps are done
-    await waitFor(() => !!A.ctx.db.query("SELECT 1 FROM settings WHERE key = 'projectsMembersOnly.v1'").get(), { timeoutMs: 20_000 })
-    A.ctx.db.query("DELETE FROM projects WHERE created_by IS NULL AND folder_path IN ('projects/falcon')").run()
     setup(A.ctx.db, A.team)
   })
   afterAll(async () => { await A.close() })
@@ -117,10 +115,10 @@ describe('the plan and the file service (M2, M3, M4, M5, M10)', () => {
   const svc = async () => (await import('../../server/src/team-files/component')).componentC(A.ctx).files
 
   test('N: a project\'s folder is not renamed, by the AI or on the Files screen, also by an admin who is its member: nothing changes, the project stays', async () => {
-    // a member may not: a project's folder is an admin's to move or rename (the rule stays)
-    expect(why(plan('alice', { action: 'rename', path: 'projects/falcon', new_name: 'falcon 2026' }))).toContain('only an admin or the owner')
-    // the owner and admins act in a project only as its members: dana (the owner) is not one, the folder is not there for her
-    expect(why(plan('dana', { action: 'rename', path: 'projects/falcon', new_name: 'falcon 2026' }))).toContain('not found or no access')
+    // a project's own folder stays where it is in projects/ (docs/DECISIONS.md "Project contents only for members"): said
+    // before any card, to a member (alice), to the owner who is not one (dana), to an admin who is (carol, below)
+    expect(why(plan('alice', { action: 'rename', path: 'projects/falcon', new_name: 'falcon 2026' }))).toContain("a project's own folder stays where it is")
+    expect(why(plan('dana', { action: 'rename', path: 'projects/falcon', new_name: 'falcon 2026' }))).toContain("a project's own folder stays where it is")
     // and a new name is a new entry right in projects/, which nobody but the server makes (docs/DECISIONS.md "Project
     // contents only for members"): carol, a member who writes all of it, is refused too, before any card
     expect('refused' in plan('carol', { action: 'rename', path: 'projects/falcon', new_name: 'falcon 2026' })).toBe(true)
@@ -544,8 +542,6 @@ describe('in a chat: the card, its answer, and what the AI is told', () => {
     // this build's one-time start steps (chat/members-only-once.ts) make a project of every projects/<name> folder that no
     // project uses, when they run (after the start, in their own time): the fixture's falcon is this suite's own
     // project (made below, as before that build), so the one the steps made for it goes, once the steps are done
-    await waitFor(() => !!h.ctx.db.query("SELECT 1 FROM settings WHERE key = 'projectsMembersOnly.v1'").get(), { timeoutMs: 20_000 })
-    h.ctx.db.query("DELETE FROM projects WHERE created_by IS NULL AND folder_path IN ('projects/falcon')").run()
     setup(h.ctx.db, h.team)
     for (const u of ['alice', 'carol']) {
       socks[u] = await h.ws(u, { windowId: `win-sf-${u}` })

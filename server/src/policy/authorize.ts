@@ -2,7 +2,7 @@
 import type { Quarantine } from '../safe-ops/quarantine'
 import fs from 'node:fs'
 import path from 'node:path'
-import { atLeast, type Principal, type RuleSet } from './access'
+import { atLeast, inProjectZone, type Principal, type RuleSet } from './access'
 import { Denied, ToolError } from './errors'
 import { badSegment, foldKey, hiddenEntry } from './names'
 import { parseInput, realpathCheck, walk } from './resolve'
@@ -48,6 +48,10 @@ export function authorize(fx: FsCtx, rules: RuleSet, user: Principal, input: unk
   if (op === 'list') { if (!rules.canList(user, full)) throw new Denied(hidden(input)) }
   else if (op === 'read' && !atLeast(acc, 'read')) throw new Denied(hidden(input))
   else if (op === 'write' && !atLeast(acc, 'write')) {
+    // a folder or file directly in projects/: only a new project makes one there (the members-only zone has no rule for
+    // a new name; docs/DECISIONS.md "Project contents only for members"). The same words whether the name is there or
+    // not, so they tell nothing about the project folders the caller cannot see
+    if (full.length === 2 && inProjectZone(full)) throw new Denied("only a new project makes a folder directly in 'projects/': make a project instead, or put the item inside one")
     if (atLeast(acc, 'read') && w.missing.length === 0) throw new Denied(`read-only: you cannot change '${full.join('/')}'`)
     if (atLeast(acc, 'read')) throw new Denied(`read-only folder: you cannot create files in '${full.slice(0, -1).join('/')}'`)
     throw new Denied(hiddenWrite(rules, user, full, segs, input))

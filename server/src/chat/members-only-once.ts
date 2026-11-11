@@ -10,10 +10,8 @@
 //   3. Scheduled tasks whose card counted the owner and admins as readers of a project (a save folder or a place under
 //      projects/): their save permission lapses once ('rules'), and their person answers the card again.
 //   4. The owner's and admins' AI sessions start fresh: a resumed session must not keep project text read before.
-//   5. A folder in projects/ that no project uses (a deleted project's folder an older build kept, a folder made there by
-//      hand) becomes a project of its own, named after its folder, with no creator: the owner and admins can then manage
-//      its members, or delete it to the trash. Without this nobody could manage it (Folder permissions refuses inside
-//      projects/, and the owner and admins do not read it).
+// And, when the owner or an admin opens their Projects list (adoptLeftoverFolders, below), not at start: a test team
+// or a fresh one may make its folders before their projects.
 import fs from 'node:fs'
 import path from 'node:path'
 import { uuidv7 } from '@mycel/shared'
@@ -67,30 +65,42 @@ export async function membersOnlyOnce(ctx: AppContext): Promise<void> {
       const touches = (s.save_folder && inZone(s.save_folder)) || (Array.isArray(sources) && sources.some((x) => x?.type === 'folder' && typeof x.id === 'string' && inZone(folderPath(x.id) ?? '')))
       if (touches && markLapsed(ctx, s, 'rules')) schedules++
     }
-    // 5. folders in projects/ without a project
-    let adopted = 0
-    const root = ctx.files.fx.root
-    const fold = (p: string) => p.normalize('NFC').toLowerCase()
-    const used = new Set((db.query('SELECT folder_path FROM projects').all() as { folder_path: string }[]).map((r) => fold(r.folder_path)))
-    for (const t of db.query("SELECT original_path FROM trash_items WHERE restored_at IS NULL AND kind = 'folder'").all() as { original_path: string }[]) used.add(fold(t.original_path))
-    for (const [top, name] of projectZoneFolders(root)) {
-      const rel = `${top}/${name}`
-      if (used.has(fold(rel)) || hiddenEntry(name, 1) || badSegment(name)) continue
-      try { if (!fs.lstatSync(path.join(root, top, name)).isDirectory()) continue } catch { continue }
-      const now = new Date().toISOString()
-      db.transaction(() => {
-        db.query('INSERT INTO projects (id, name, folder_path, instructions, created_by, created_at, instructions_author, instructions_authored, folder_made) VALUES (?,?,?,?,?,?,?,?,0)')
-          .run(uuidv7(), name.normalize('NFC').slice(0, 100), rel, '', null, now, null, null)
-        if (!db.query('SELECT 1 FROM folders WHERE path = ?').get(rel)) db.query('INSERT INTO folders (id, path, created_at) VALUES (?, ?, ?)').run(uuidv7(), rel, now)
-      })()
-      used.add(fold(rel))
-      adopted++
-    }
     // 4. fresh AI sessions for the owner and admins
     let sessions = 0
     for (const id of staff) { try { sessions += resetEngineSessions(ctx, id) } catch { /* their next turn starts fresh anyway when it cannot resume */ } }
     setSetting(db, DONE, new Date().toISOString())
     // (a new team, or one with nothing to take away: no row)
-    if (answers || gone.length || schedules || sessions || adopted) audit(db, { actor: null, action: 'projects.members_only', target: null, detail: { answers, roleRules: gone.map((r) => ({ path: r.path, role: r.subject_id })), schedules, sessions, adopted } })
+    if (answers || gone.length || schedules || sessions) audit(db, { actor: null, action: 'projects.members_only', target: null, detail: { answers, roleRules: gone.map((r) => ({ path: r.path, role: r.subject_id })), schedules, sessions } })
   } catch (e) { ctx.log.error('the members-only start steps did not finish; they run again at the next start', { err: e }) }
+}
+
+/**
+ * A folder in projects/ that no project uses (a deleted project's folder an older build kept, a folder made there by
+ * hand) becomes a project of its own, named after its folder, with no creator (docs/DECISIONS.md "Project contents only
+ * for members"): the owner and admins can then manage its members, or delete it to the trash. Without this nobody could
+ * manage it (Folder permissions refuses inside projects/, and the owner and admins do not read it). Run when the owner
+ * or an admin lists the projects they manage; each is audited once. Returns how many became projects.
+ */
+export function adoptLeftoverFolders(ctx: AppContext, actor: string): number {
+  const db = ctx.db
+  let adopted = 0
+  const root = ctx.files.fx.root
+  const fold = (p: string) => p.normalize('NFC').toLowerCase()
+  const used = new Set((db.query('SELECT folder_path FROM projects').all() as { folder_path: string }[]).map((r) => fold(r.folder_path)))
+  for (const t of db.query("SELECT original_path FROM trash_items WHERE restored_at IS NULL AND kind = 'folder'").all() as { original_path: string }[]) used.add(fold(t.original_path))
+  for (const [top, name] of projectZoneFolders(root)) {
+    const rel = `${top}/${name}`
+    if (used.has(fold(rel)) || hiddenEntry(name, 1) || badSegment(name)) continue
+    try { if (!fs.lstatSync(path.join(root, top, name)).isDirectory()) continue } catch { continue }
+    const now = new Date().toISOString()
+    db.transaction(() => {
+      db.query('INSERT INTO projects (id, name, folder_path, instructions, created_by, created_at, instructions_author, instructions_authored, folder_made) VALUES (?,?,?,?,?,?,?,?,0)')
+        .run(uuidv7(), name.normalize('NFC').slice(0, 100), rel, '', null, now, null, null)
+      if (!db.query('SELECT 1 FROM folders WHERE path = ?').get(rel)) db.query('INSERT INTO folders (id, path, created_at) VALUES (?, ?, ?)').run(uuidv7(), rel, now)
+    })()
+    used.add(fold(rel))
+    adopted++
+    audit(db, { actor, action: 'project.adopted', target: rel, detail: { folderPath: rel } })
+  }
+  return adopted
 }

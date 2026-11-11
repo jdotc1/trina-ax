@@ -196,8 +196,9 @@ describe('a project on the team root', () => {
     expect(r).toMatchObject({ needsFolder: false, setting: { enabled: true } })
     expect(h.ctx.db.query("SELECT actor_id, detail FROM audit_log WHERE action = 'dev_env.folder' AND target = ?").all(id))
       .toEqual([{ actor_id: 'carol', detail: JSON.stringify({ before: '', after: 'projects/배너 영상-2' }) }])
-    // inherits the same access as the team root: no new rule
-    expect(h.ctx.db.query("SELECT 1 FROM folder_rules r JOIN folders f ON f.id = r.folder_id WHERE f.path = 'projects/배너 영상-2'").all()).toEqual([])
+    // made as the system; it inherits the team root's access for the team's members (no floor), and the admin who turned
+    // it on is a member of it by name (docs/DECISIONS.md "Project contents only for members")
+    expect(h.ctx.db.query("SELECT r.subject_type, r.subject_id, r.access FROM folder_rules r JOIN folders f ON f.id = r.folder_id WHERE f.path = 'projects/배너 영상-2'").all()).toEqual([{ subject_type: 'user', subject_id: 'carol', access: 'write' }])
     // the second save keeps the folder
     await h.api('carol').call(API.updateDevEnv, { params: { id }, body })
     expect(folderOf(id)).toBe('projects/배너 영상-2')

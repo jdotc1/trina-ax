@@ -301,13 +301,13 @@ describe('move_files', () => {
     put('shared/kit/skills/x/SKILL.md', '---\nname: x\ndescription: x\n---\nsteps\n')
     const turnId = A.turn('carol', A.chat('carol'))
     const aliceTurn = A.turn('alice', A.chat('alice'))
-    expect(() => componentC(A.ctx).files.move('carol', 'shared/kit', 'projects/kit', 'fail', { turnId })).toThrow(/not found or no access/)
+    expect(() => componentC(A.ctx).files.move('carol', 'shared/kit', 'projects/kit', 'fail', { turnId })).toThrow(/not found or no access|only a new project makes a folder directly in 'projects\/'/)
     A.ctx.db.query("INSERT INTO folders (id, path) VALUES ('f_moves_projects_top', 'projects')").run()
     A.ctx.db.query("INSERT INTO folder_rules (id, folder_id, subject_type, subject_id, access) VALUES ('r_moves_projects_top', 'f_moves_projects_top', 'user', 'alice', 'write')").run()
     try {
       expect(() => componentC(A.ctx).files.move('alice', 'shared/kit', 'projects/kit', 'fail', { turnId: aliceTurn })).toThrow(/do not move or copy with the file tools/)
       // the rule on projects/ does not reach in for an admin
-      expect(() => componentC(A.ctx).files.move('carol', 'shared/kit', 'projects/kit', 'fail', { turnId })).toThrow(/not found or no access/)
+      expect(() => componentC(A.ctx).files.move('carol', 'shared/kit', 'projects/kit', 'fail', { turnId })).toThrow(/not found or no access|only a new project makes a folder directly in 'projects\/'/)
     } finally {
       A.ctx.db.query("DELETE FROM folder_rules WHERE id = 'r_moves_projects_top'").run()
       A.ctx.db.query("DELETE FROM folders WHERE id = 'f_moves_projects_top'").run()
@@ -317,8 +317,8 @@ describe('move_files', () => {
     put('projects/falcon/skills/kept/SKILL.md', '---\nname: kept\ndescription: x\n---\nsteps\n')
     const out = await call('alice', 'move_files', { paths: ['projects/falcon/skills/kept'], to_folder: 'projects/falcon/drafts' }, { person: ask(true), turn: true })
     expect(out.isError).toBe(true)
-    expect(() => componentC(A.ctx).files.move('carol', 'projects/falcon', 'shared/falcon-old', 'fail', { turnId })).toThrow(/not found or no access/)
-    await expect(componentC(A.ctx).files.copy('carol', 'shared/glossary.md', 'projects/falcon/skills/kept/notes.md', { turnId })).rejects.toThrow(/not found or no access/)
+    expect(() => componentC(A.ctx).files.move('carol', 'projects/falcon', 'shared/falcon-old', 'fail', { turnId })).toThrow(/not found or no access|only a new project makes a folder directly in 'projects\/'/)
+    await expect(componentC(A.ctx).files.copy('carol', 'shared/glossary.md', 'projects/falcon/skills/kept/notes.md', { turnId })).rejects.toThrow(/not found or no access|only a new project makes a folder directly in 'projects\/'/)
     // carol as a member who writes all of it (person rules on its rule folders, as its members dialog adds them): the
     // skill guard for the AI; and a project's folder never leaves projects/, also on the Files screen (409)
     type Rule = { subjectType: 'everyone' | 'role' | 'group' | 'user'; subjectId: string | null; access: 'none' | 'read' | 'write' }
@@ -347,7 +347,7 @@ describe('move_files', () => {
     const svc = componentC(A.ctx).files
     // projects/<name> is its members' (docs/DECISIONS.md "Project contents only for members"): asked first or not, an
     // admin writes no new folder there, so the skills are never switched on there
-    for (const skillsOk of [false, true]) expect(() => svc.move('carol', 'shared/pricing', 'projects/pricing', 'fail', { skillsOk })).toThrow(/not found or no access/)
+    for (const skillsOk of [false, true]) expect(() => svc.move('carol', 'shared/pricing', 'projects/pricing', 'fail', { skillsOk })).toThrow(/not found or no access|only a new project makes a folder directly in 'projects\/'/)
     expect(has('shared/pricing/skills/margin/SKILL.md')).toBe(true)
     expect(has('projects/pricing')).toBe(false)
     expect(A.ctx.db.query("SELECT 1 FROM audit_log WHERE action = 'skills.change' AND target = 'projects/pricing/skills/margin/SKILL.md'").get()).toBeNull()

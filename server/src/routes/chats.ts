@@ -43,6 +43,7 @@ import { AnswerSight, type ChatHit } from '../chat/shared-answers'
 import { safeOpsEnabled } from '../safe-ops/runner'
 import { forgetPurgedChats } from '../chat/forget'
 import { dropChatPins, dropUnseenPins, pin, pinsOf, unpin } from '../chat/pins'
+import { adoptLeftoverFolders } from '../chat/members-only-once'
 import { askSkillsOn, recordSkillsOn, skillsUnder } from '../skills/switch-on'
 
 const WINDOW_RE = /^[A-Za-z0-9_-]{8,64}$/
@@ -590,11 +591,13 @@ export const chatsRoutes: RouteModule = {
     // ---------------- projects ----------------
     kit.handle(API.listProjects, ({ query, auth }) => {
       const p = principal(ctx, auth)
+      // without `manage`: the projects the caller reads (pickers, older apps); with it, also those they only manage, and
+      // for the owner and admins a folder in projects/ that no project uses becomes one first (chat/members-only-once.ts)
+      const manage = !!query.manage
+      if (manage && isAdmin(p)) { try { adoptLeftoverFolders(ctx, p.id) } catch (e) { ctx.log.warn('leftover project folders not adopted', { err: e }) } }
       const rows = ctx.db.query(`SELECT ${PROJECT_COLS} FROM projects ORDER BY name COLLATE NOCASE, id`).all() as Parameters<typeof rt.store.toProject>[0][]
       const aud = new Audiences(ctx.db, ctx.files)
       const creators = new Map<string, Principal | null>()
-      // without `manage`: the projects the caller reads (pickers, older apps); with it, also those they only manage
-      const manage = !!query.manage
       return { items: rows.filter((r) => canSeeProject(ctx.files, p, r) || (manage && mayManage(ctx, p, r))).map((r) => projectOut(r, p, mayEdit(ctx, p, r), auth.user.id, creators, aud)) }
     })
 

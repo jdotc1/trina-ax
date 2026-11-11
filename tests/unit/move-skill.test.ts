@@ -228,8 +228,6 @@ describe('in the app: the Skills page and the AI', () => {
     // this build's one-time start steps (chat/members-only-once.ts) make a project of every projects/<name> folder that no
     // project uses, when they run (after the start, in their own time): the fixture's falcon is this suite's own
     // project (made below, as before that build), so the one the steps made for it goes, once the steps are done
-    await waitFor(() => !!h.ctx.db.query("SELECT 1 FROM settings WHERE key = 'projectsMembersOnly.v1'").get(), { timeoutMs: 20_000 })
-    h.ctx.db.query("DELETE FROM projects WHERE created_by IS NULL AND folder_path IN ('projects/falcon')").run()
     setup(h.ctx.db, h.team)
     setupLeads(h.ctx.db, h.team)
     for (const u of ['alice', 'carol', 'dana']) {
