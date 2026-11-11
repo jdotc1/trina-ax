@@ -162,7 +162,7 @@ describe('who hears of it and who may restore it', () => {
     await trash('carol', 'shared/c4')
     // its contents are nobody's while it is in the trash, the admins' included (they used to edit them)
     const told = await noticesDuring('project_instructions_changed', async () => {
-      for (const who of ['carol', 'bob']) expect(await status(h.api(who).call(API.updateProject, { params: { id: p.id }, body: { instructions: 'v2' } }))).toBe(who === 'carol' ? 403 : 404)
+      for (const who of ['carol', 'bob']) expect(await status(h.api(who).call(API.updateProject, { params: { id: p.id }, body: { instructions: 'v2' } }))).toBe(who === 'carol' ? 409 : 404) // (carol manages it: 409 project_in_trash)
     })
     expect(told).toEqual([])
     expect(row(p.id).instructions).toBe('v1')
@@ -286,7 +286,7 @@ describe('an admin edits a project whose folder is in the trash (review round 4)
     await trash('carol', 'shared/fin')
     // its instructions are its contents: nobody's while it is in the trash, the admins' neither (refused, unchanged)
     const told = await noticesDuring('project_instructions_changed', async () => {
-      expect(await status(h.api('carol').call(API.updateProject, { params: { id: p.id }, body: { name: 'Finance plan', instructions: 'SECRET-2' } }))).toBe(403)
+      expect(await status(h.api('carol').call(API.updateProject, { params: { id: p.id }, body: { name: 'Finance plan', instructions: 'SECRET-2' } }))).toBe(409) // project_in_trash: its instructions nobody's
       // a new name alone is management: the admin's
       expect(await status(h.api('carol').call(API.updateProject, { params: { id: p.id }, body: { name: 'Finance plan 2026' } }))).toBe(200)
     })
@@ -331,7 +331,7 @@ describe('an admin edits a project whose folder is in the trash (review round 4)
     await h.api('alice').call(API.mkdir, { body: { path: 'shared/held2' } })
     await project('alice', 'shared/held2', 'Held 2 new')
     // (its instructions are nobody's while it is in the trash: refused; its name is the admin's)
-    expect(await status(h.api('carol').call(API.updateProject, { params: { id: p.id }, body: { name: 'Held 2 renamed', instructions: 'x' } }))).toBe(403)
+    expect(await status(h.api('carol').call(API.updateProject, { params: { id: p.id }, body: { name: 'Held 2 renamed', instructions: 'x' } }))).toBe(409) // project_in_trash
     expect(await status(h.api('carol').call(API.updateProject, { params: { id: p.id }, body: { name: 'Held 2 renamed' } }))).toBe(200)
     expect(row(p.id)).toMatchObject({ name: 'Held 2 renamed', instructions: '' })
     expect(row(p.id).trashed_with).not.toBeNull()

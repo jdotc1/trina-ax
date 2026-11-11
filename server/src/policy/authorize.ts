@@ -48,13 +48,14 @@ export function authorize(fx: FsCtx, rules: RuleSet, user: Principal, input: unk
   if (op === 'list') { if (!rules.canList(user, full)) throw new Denied(hidden(input)) }
   else if (op === 'read' && !atLeast(acc, 'read')) throw new Denied(hidden(input))
   else if (op === 'write' && !atLeast(acc, 'write')) {
-    // a folder or file directly in projects/: only a new project makes one there (the members-only zone has no rule for
-    // a new name; docs/DECISIONS.md "Project contents only for members"). The same words whether the name is there or
-    // not, so they tell nothing about the project folders the caller cannot see
-    if (full.length === 2 && inProjectZone(full)) throw new Denied("only a new project makes a folder directly in 'projects/': make a project instead, or put the item inside one")
     if (atLeast(acc, 'read') && w.missing.length === 0) throw new Denied(`read-only: you cannot change '${full.join('/')}'`)
     if (atLeast(acc, 'read')) throw new Denied(`read-only folder: you cannot create files in '${full.slice(0, -1).join('/')}'`)
-    throw new Denied(hiddenWrite(rules, user, full, segs, input))
+    // a folder or file directly in projects/: only a new project makes one there (the members-only zone has no rule for
+    // a new name; docs/DECISIONS.md "Project contents only for members"). Said after the usual refusal, which is the same
+    // whether the name is there or not (it stays a 404 or a 403), so it tells nothing about project folders not seen
+    const why = hiddenWrite(rules, user, full, segs, input)
+    if (full.length === 2 && inProjectZone(full)) throw new Denied(`${why}. Only a new project makes a folder directly in 'projects/': make a project instead, or put the item inside one`)
+    throw new Denied(why)
   }
   if (w.problem) throw new Denied(w.problem)
   // after the access check: only someone who may write here learns that a plugin manages it
