@@ -19875,7 +19875,7 @@ Replaces "K — Knowledge graph" (2026-11-06), "지식 그래프로 더 빠른 �
 넣을 곳: trina-ax core (`server/src/policy/access.ts`, `policy/zone.ts`, `chat/projects.ts`, `chat/shared.ts`,
 `chat/project-access.ts`, `chat/project-members.ts`, `chat/project-joins.ts`, `chat/members-only-once.ts`,
 `routes/chats.ts`, `routes/admin.ts`, `admin/*`, `team-files/service.ts`, `files/search.ts`, `devenv/srt/access.ts`,
-`chat/read-scope.ts`, `skills/changes.ts`, `knowledge-graph/service.ts`, `system/export.ts`, migration 284, the
+`chat/read-scope.ts`, `skills/changes.ts`, `system/export.ts`, migration 284, the
 project, files and admin screens), 이유: permissions, files, projects and chats are core. Plan:
 `docs/AGENTS/plan/20261110-1648-project-members-only.md` (a security and a product review before building).
 
@@ -19905,7 +19905,7 @@ only with the group "leads" (3 people) said "5 people see it": the owner and an 
   and its members a quiet inbox notice ("{who} joined '{name}'", migration 284 `project_notices`).
 - **What admins no longer see:** paths inside a project they do not read are cut to `projects/<name>/…` in the
   activity log (also tool summaries, instructions changes and dev environment commands), skill changes and their
-  notices, the knowledge graph status and every admin answer that names folders; the owner's export leaves them out.
+  notices and every admin answer that names folders; the owner's export leaves them out.
   Version history, timelines, the trash and the #278 rescue have no owner/admin fallback inside the zone.
 - **Once, at the first start** (`chat/members-only-once.ts`): owner and admin ids leave the stored audiences of shared
   answers; role rules for admins inside the zone go; schedules with a save folder or source under `projects/` lapse

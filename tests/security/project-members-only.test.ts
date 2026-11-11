@@ -98,7 +98,6 @@ describe('the owner and an admin who are not members read nothing of it', () => 
     ['admin: by person (alice)', 'GET', '/api/admin/access/people/alice'],
     ['admin: the activity log', 'GET', '/api/admin/audit?limit=200'],
     ['admin: the skill changes', 'GET', '/api/admin/skill-changes'],
-    ['admin: knowledge graph status', 'GET', '/api/admin/knowledge-graph'],
     ['inbox', 'GET', '/api/notifications'],
   ]
   for (const who of OUTSIDERS) {
