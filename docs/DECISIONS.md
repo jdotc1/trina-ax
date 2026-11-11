@@ -19869,3 +19869,63 @@ Replaces "K — Knowledge graph" (2026-11-06), "지식 그래프로 더 빠른 �
   until 0.5.0-beta.1), whose removal note was one of those lines, and its model, which that note said would stay.
 - Version impact: **minor** (0.x): a feature and an admin API are removed; nothing an installed team set up stops
   loading.
+
+## Project contents only for members — 프로젝트 내용은 멤버만 (feat/project-members-only, 2026-11-11, product owner)
+
+넣을 곳: trina-ax core (`server/src/policy/access.ts`, `policy/zone.ts`, `chat/projects.ts`, `chat/shared.ts`,
+`chat/project-access.ts`, `chat/project-members.ts`, `chat/project-joins.ts`, `chat/members-only-once.ts`,
+`routes/chats.ts`, `routes/admin.ts`, `admin/*`, `team-files/service.ts`, `files/search.ts`, `devenv/srt/access.ts`,
+`chat/read-scope.ts`, `skills/changes.ts`, `knowledge-graph/service.ts`, `system/export.ts`, migration 339, the
+project, files and admin screens), 이유: permissions, files, projects and chats are core. Plan:
+`docs/AGENTS/plan/20261110-1648-project-members-only.md` (a security and a product review before building).
+
+The owner chose option B (2026-11-10): **a project's contents are visible only to its members.** A project shared
+only with the group "leads" (3 people) said "5 people see it": the owner and an admin were counted by role, because
+`RuleSet.decide()` gave them write on every path outside `users/`. Ordinary team folders do not change.
+
+- **The rule.** Every path at or below `projects/<name>/` (`projects` compared after NFC and lower-casing) is the
+  members-only zone. Inside it the owner and admins are judged as a member with the same groups, by the rules at or
+  below `projects/<name>` only: a role rule for admins never applies there, and rules on `projects/` or the root never
+  reach in for them (else an admin's own rule on the root would open every project without a floor of its own).
+  Members are judged as before. The server's own principal carries `system: true`; nothing is inferred from a role.
+  `hasVisibleDescendant`, `listing()` and `navigator()` follow the same rule. Code that assumed access changes only at
+  a rule folder (search roots, the srt sandbox's lists, read sources) treats every `projects/<name>` as a boundary.
+- **Two checks.** `canSeeProject` means "reads its contents" (instructions, chats, files, skills, dev environment);
+  while its folder is in the trash or purged nobody reads them, admins included. `mayManageProject` (the owner and
+  admins for any team project; the creator while they may edit it) covers what admins keep: the project in the list
+  (`GET /api/projects?manage=1`: `member: false`, no instructions), its members (also adding themselves), rename,
+  delete, restore (`POST /api/projects/:id/restore`). Without `manage` the lists are "projects I read", so pickers and
+  older apps are unchanged. Instructions and chat sharing need membership; repointing a detached project needs an
+  admin who reads what it held.
+- **No way in that does not show.** Admin › Folder permissions never writes, previews or answers at or under
+  `projects/<name>` (409 `project_members_only`, one answer for present and missing paths) and shows a project folder
+  as one row, "Members only". `projects/` itself never moves, is never renamed or trashed, and a project's folder never
+  leaves it. Whoever starts to read a project by any path (Add me, the members dialog, the AI's card, a group they were
+  added to, a new account in one of its groups) leaves a `project.member_gained` audit row (`self` when they did it)
+  and its members a quiet inbox notice ("{who} joined '{name}'", migration 339 `project_notices`).
+- **What admins no longer see:** paths inside a project they do not read are cut to `projects/<name>/…` in the
+  activity log (also tool summaries, instructions changes and dev environment commands), skill changes and their
+  notices, the knowledge graph status and every admin answer that names folders; the owner's export leaves them out.
+  Version history, timelines, the trash and the #278 rescue have no owner/admin fallback inside the zone.
+- **Once, at the first start** (`chat/members-only-once.ts`): owner and admin ids leave the stored audiences of shared
+  answers; role rules for admins inside the zone go; schedules with a save folder or source under `projects/` lapse
+  once and ask again; owner and admin AI sessions start fresh.
+- **Counts.** Project counts, the members dialog and the dry runs count members only; a new project's dry run never
+  counts admins unless chosen (no `adminsApart`). #341's split keeps its folder chip; for projects its role part is 0.
+- **Defaults, owner may change** (recommended in the plan's review; the coordinator applied them):
+  1. Deleting a team project always moves it to the trash with its folder; Restore brings both back, "Delete for good"
+     removes them. The "also move the folder" checkbox is gone.
+  2. Projects made before 2026-11-09 outside `projects/` stay visible to the owner and admins, with a line saying so.
+     (Not counted on the team servers: no read-only way from the code or fixtures.)
+  3. No "transfer project" when a creator leaves: admins manage its members without joining.
+  4. No notice at the upgrade, only the changelog.
+- **Not closed by this:** the server's backups and disk hold everything; an admin who resets a member's password or
+  makes an account can sign in as them (noisy and recorded). Past room posts and exports stay.
+- **Plain words** (owner, 2026-11-11): no "role", "rule" or paths in the new screens. "Only members can open this
+  project. Add yourself to see its files." / "Members will see that you joined" / "Members only".
+- Tests: `tests/security/project-members-only.test.ts` (every checklist path as a non-member owner and admin, then what
+  they keep and the ways in that show), the permission matrix with "Team plan" canaries (the owner and admin must see
+  none of them on any route) and `projects/falcon` no longer theirs, the matrix case for restore; the unit suites of the
+  touched areas; web unit and e2e of the project, files, admin and shared-chat screens.
+- Version impact: **minor** (the owner and admins lose a kind of access; delete changes; new optional fields, a route
+  and migration 339 add-only).
