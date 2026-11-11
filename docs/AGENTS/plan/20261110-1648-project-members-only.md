@@ -2,7 +2,7 @@
 
 - Date (UTC): 2026-11-10 16:48
 - Branch: `feat/project-members-only` (this plan); code in the PRs listed under "PR split"
-- Status: draft (phase 1: plan reviewed by a security and a product reviewer; no code yet)
+- Status: in progress (built; PR open)
 - Where: trina-ax core (`server/src/policy/access.ts`, `server/src/chat/projects.ts`, `chat/shared.ts`,
   `chat/project-access.ts`, `chat/project-members.ts`, `routes/chats.ts`, `routes/admin.ts`, `team-files/service.ts`,
   `files/search.ts`, `devenv/srt/access.ts`, `chat/read-scope.ts`, `chat/shared-answers.ts`, `chat/schedule-scope.ts`,
@@ -346,4 +346,22 @@ Product (the admin's experience and the owner's mental model): 5 must-fix, all t
 
 ## Result
 
-Filled in at the end.
+Built as one PR (PR1 and PR2 together, as the reviews asked). The coordinator applied the four recommended answers as
+defaults the owner may change (DECISIONS "Project contents only for members"). What differs from the plan, and why:
+
+- **No new reason `members-only` in `explain()`.** An owner or admin inside the zone without a rule gets `no-rule` (or
+  the `rule` that decided, e.g. "everyone else: none"), which the admin screens already word; Admin shows the project
+  folder as "Members only" by its kind instead.
+- **Boundaries:** a listing of `projects/` (policy/zone.ts) for search roots and the srt sandbox, and a `folders` row
+  for `projects/<name>` made by `sourceOf` when a read needs one. No start-up step for them.
+- **Schedules:** instead of an engine version in the fingerprint, the one-time start step lapses every schedule with a
+  save folder or a source under `projects/` (same effect, no change to the fingerprint).
+- **Making a folder directly in `projects/`** needs no new 409: the engine already refuses it (no rule there for an
+  admin's new name); the Files screen hides New folder and Upload there.
+- **The joined notice** is stored (migration 339 `project_notices`, add-only), so a notice is never lost to an offline
+  member; it covers every path (Add me, members dialog, AI card, group changes, new accounts).
+- **#341 (`fix/members-count-apart`) landed first.** Its split stays; for projects its role part is 0 and the project
+  role lines are gone; its changes note was trimmed to the folder chip.
+- **A project made for the dev environment on the team root** (`routes/dev-env.ts giveProjectFolder`) can no longer
+  be given a `projects/` folder by an admin who is not its member: the request is refused with its existing message.
+- **Not counted:** legacy projects on the team servers (no read-only way from the code or fixtures).
