@@ -28,8 +28,8 @@ const audience = (who: string, path: string) => h.api(who).call(API.folderAudien
 describe('a project apart', () => {
   // docs/DECISIONS.md "Project contents only for members": in projects/ nobody sees a project by role, so `byRole` is 0
   // there and the total is its members; the owner and admins who are not members see the count with manage=1
-  const managed = (who: string, id: string) => h.api(who).call(API.getProject, { params: { id }, query: { manage: true } })
-  const listedManaged = async (who: string, id: string) => (await h.api(who).call(API.listProjects, { query: { manage: true } })).items.find((x) => x.id === id)
+  const managed = (who: string, id: string) => h.api(who).call(API.getProject, { params: { id }, query: { manage: '1' } })
+  const listedManaged = async (who: string, id: string) => (await h.api(who).call(API.listProjects, { query: { manage: '1' } })).items.find((x) => x.id === id)
   test('the creator and a group the creator is in (the owner\'s case): the creator counts once, admins are not counted', async () => {
     const id = await project('alice', 'Quotes', [group('marketing')])
     // alice (creator, in marketing) and erin by its rules; carol and dana are not members
