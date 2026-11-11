@@ -31,8 +31,8 @@ type Scope =
   | 'users-alice'     // a path under users/alice/: only alice, NOT owner/admin
   | 'finance'         // finance folder resource: bob + owner + admin (read or write as noted)
   | 'finance-write'   // finance folder write: bob + owner + admin
-  | 'falcon-read'     // projects/falcon: alice(write) + bob(finance read) + owner + admin
-  | 'alice-project'   // who sees and changes the participants of alice's team project: alice (its creator) + owner + admin
+  | 'falcon-read'     // projects/falcon: alice(write) + bob(finance read); the owner and admins only as members (none here)
+  | 'alice-project'   // who manages the participants of alice's team project: alice (its creator) + owner + admin (they manage it without being members)
   | 'shared'          // shared/: every signed-in person
   | 'suggestion-alice' // a skill alice suggested into skills/: alice + the managers of skills/ (owner, admin)
   | 'skills-manager'  // acting on a suggestion for skills/: only its managers (owner, admin), not even alice
@@ -80,7 +80,7 @@ function scopeAllows(scope: Scope, who: Who): boolean {
     case 'self': case 'shared': case 'byLevel': return true
     case 'own-alice': case 'own-alice-chat': case 'users-alice': return who === 'memberIn'
     case 'finance': case 'finance-write': return who === 'memberOut' || who === 'owner' || who === 'admin'
-    case 'falcon-read': return who === 'memberIn' || who === 'memberOut' || who === 'owner' || who === 'admin'
+    case 'falcon-read': return who === 'memberIn' || who === 'memberOut'
     case 'suggestion-alice': case 'alice-project': return who === 'memberIn' || who === 'owner' || who === 'admin'
     case 'skills-manager': case 'admins': return who === 'owner' || who === 'admin'
     case 'own-owner': return who === 'owner'
@@ -449,7 +449,9 @@ export const SPECS: Record<string, Spec> = {
     } },
   // the team's default folders and a group's folder row stay (409), for the owner and admins too. The group is made here:
   // the world's groups may already be gone (deleteGroup runs before this case), and nothing here may depend on order
-  deleteFolder: { build: (c, w) => c.del(`/api/admin/folders/${w.folders['projects/falcon/public']}`), scope: 'byLevel',
+  // (a folder of its own: one inside a team project is refused to admins now, docs/DECISIONS.md "Project contents only for
+  // members"; the member's call gets the role refusal on the shared/ row)
+  deleteFolder: { build: async (c, w) => { const made = await c.post('/api/admin/folders', { path: `shared/del-${Math.random().toString(36).slice(2, 8)}`, create: true, rules: [{ subjectType: 'everyone', subjectId: null, access: 'read' }] }); return c.del(`/api/admin/folders/${made.json?.id ?? w.folders.shared}`) }, scope: 'byLevel',
     check: async (r, w, who) => {
       if (who !== 'owner' && who !== 'admin') return
       const c = w.as[who]
