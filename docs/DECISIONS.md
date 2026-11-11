@@ -19936,6 +19936,14 @@ only with the group "leads" (3 people) said "5 people see it": the owner and an 
   (rename the project on its page); a new entry directly in `projects/` is refused with one plain sentence, the same
   whether the name is there or not. The dev environment's "a folder of its own" for a project on the team root makes
   `projects/<name>` as the system, with the admin who turns it on as a member by name.
+- **Screen review** (a non-developer's read of every new screen): Admin › Folder permissions said the owner and admins
+  see every folder; its notes and reasons now leave out projects they are not in, and a person's reason on a project
+  folder is "Member" or "Not a member". Its answers for an older project folder with no settings of its own came from
+  `projects/` or the root, where the owner and admins read everything: the deciding folder never goes above
+  `projects/<name>` now (`ruleFolderOf`), as in the permission function. Also: the trash confirm says what members
+  lose, a missing folder's line no longer points at Folder permissions, the members dialog's other settings are
+  "Others who can see it", a project row in Files says "Members only" to a non-member admin, and the chat-not-found
+  line links to Projects.
 - **Not closed by this:** the server's backups and disk hold everything; an admin who resets a member's password or
   makes an account can sign in as them (noisy and recorded). Past room posts and exports stay.
 - **Plain words** (owner, 2026-11-11): no "role", "rule" or paths in the new screens. "Only members can open this

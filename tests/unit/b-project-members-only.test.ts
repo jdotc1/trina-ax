@@ -13,6 +13,7 @@ import { listAudit } from '../../server/src/admin/audit'
 import { auditSight } from '../../server/src/admin/audit-sight'
 import { membersOnlyOnce } from '../../server/src/chat/members-only-once'
 import { setSetting } from '../../server/src/admin/settings'
+import { ruleFolderOf } from '../../server/src/admin/access-rows'
 
 setDefaultTimeout(60_000)
 const P = (id: string, role: Principal['role'], groups: string[] = []): Principal => ({ id, name: id, role, groups })
@@ -192,5 +193,40 @@ describe('who starts to read a project is recorded and its members are told', ()
     expect(told.map((x) => x.user_id)).toContain('alice')
     expect(told.map((x) => x.user_id)).not.toContain(made.user.id)
     expect(atLeast(h.ctx.files.rules().access(h.ctx.files.principal(made.user.id), segs('projects/Team plan')), 'read')).toBe(true)
+  })
+})
+
+describe('Admin › Folder permissions answers a project folder as the permission function does', () => {
+  test('the deciding folder never goes above projects/<name>', () => {
+    const ruleFolders = new Set(['', 'projects', 'projects/plan/open'])
+    expect(ruleFolderOf(ruleFolders, segs('projects/oldie'))).toBe('projects/oldie')
+    expect(ruleFolderOf(ruleFolders, segs('projects/oldie/a/b'))).toBe('projects/oldie')
+    expect(ruleFolderOf(ruleFolders, segs('projects/plan/open/x'))).toBe('projects/plan/open')
+    expect(ruleFolderOf(ruleFolders, segs('projects'))).toBe('projects')
+    expect(ruleFolderOf(ruleFolders, segs('shared/a'))).toBe('')
+  })
+
+  test('an older project folder with no settings of its own: the owner and admins have no access there, by person and by folder', async () => {
+    // a project made by an older build whose folder carries no rules: it would answer as projects/ or the root, where
+    // the owner and admins read everything, but inside a project they are judged by its own rules only
+    const db = h.ctx.db
+    fs.mkdirSync(path.join(h.team, 'projects', 'Oldie'), { recursive: true })
+    const id = uuidv7()
+    db.query('INSERT INTO projects (id, name, folder_path, created_by, created_at) VALUES (?,?,?,?,?)').run(id, 'Oldie', 'projects/Oldie', 'alice', new Date().toISOString())
+    try {
+      for (const who of ['dana', 'carol']) {
+        const mine = await h.api('dana').call(API.explainPersonAccess, { params: { id: who }, query: { prefix: 'projects' } })
+        const row = mine.folders.find((f) => f.path === 'projects/Oldie')
+        expect(row).toMatchObject({ access: 'none' })
+        expect(row!.reason.kind).not.toBe('owner-admin')
+        expect(atLeast(h.ctx.files.rules().access(h.ctx.files.principal(who), segs('projects/Oldie')), 'read')).toBe(false)
+      }
+      const at = await h.api('carol').call(API.explainFolderAccess, { query: { path: 'projects/Oldie' } })
+      for (const who of ['dana', 'carol']) expect(at.people.find((x) => x.user.id === who)).toMatchObject({ access: 'none' })
+      expect(at.people.filter((x) => x.reason.kind === 'owner-admin')).toEqual([])
+    } finally {
+      db.query('DELETE FROM projects WHERE id = ?').run(id)
+      fs.rmSync(path.join(h.team, 'projects', 'Oldie'), { recursive: true, force: true })
+    }
   })
 })
