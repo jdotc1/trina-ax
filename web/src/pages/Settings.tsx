@@ -31,7 +31,8 @@ import { browserSettingsBridge, clientKind, desktop, storeApp } from '../lib/des
 import { mobileApp } from '../lib/mobile'
 import { pickTextSize, TEXT_SIZE_PERCENT, TEXT_SIZES, useTextSize } from '../lib/textSize'
 import { teamAddressHost } from '../lib/team-address'
-import { Badge, Button, CopyButton, EmptyState, ErrorNote, Field, IconButton, Skeleton, confirmDialog, inputCls, noKeyRepeat, useMediaQuery } from '../components/ui'
+import { Badge, Button, CopyButton, EmptyState, Field, IconButton, Skeleton, confirmDialog, inputCls, noKeyRepeat, useMediaQuery } from '../components/ui'
+import { LoadError } from '../components/LoadError'
 import { SourceCodeLinks, useServerSource } from '../components/SourceCodeLink'
 import { Avatar } from '../components/Avatar'
 import { squarePhoto, type Photo } from '../lib/avatar'
@@ -399,13 +400,14 @@ function Security() {
   const t = useT()
   const locale = useLocale()
   const [sessions, setSessions] = useState<Session[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  // what the read threw, kept until a read works (components/LoadError.tsx)
+  const [error, setError] = useState<unknown>(null)
   const load = async () => {
     try {
       setSessions((await api.call(API.mySessions)).items)
       setError(null)
     } catch (e) {
-      setError(errorText(e, locale, t('error.network')))
+      setError(e ?? new Error('failed'))
     }
   }
   useEffect(() => {
@@ -451,7 +453,7 @@ function Security() {
         </Section>
       )}
       <Section title={t('settings.devices')} desc={t('settings.devicesHint')}>
-        {error && <ErrorNote onRetry={load}>{error}</ErrorNote>}
+        {!!error && <LoadError error={error} onRetry={load} what="settings-devices" />}
         {!sessions && !error && <Skeleton lines={3} />}
         {/* phones: plain rows under the section (no frame around them) */}
         <ul className="divide-y divide-line md:rounded-xl md:border md:border-line">
@@ -515,7 +517,8 @@ function Memories() {
   const locale = useLocale()
   const [items, setItems] = useState<Memory[] | null>(null)
   const [cursor, setCursor] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  // what the read threw, kept until a read works (components/LoadError.tsx)
+  const [error, setError] = useState<unknown>(null)
   // the one form open: 'new', or the id of the memory being corrected
   const [editing, setEditing] = useState<string | null>(null)
   const load = async (more = false) => {
@@ -525,7 +528,7 @@ function Memories() {
       setCursor(r.nextCursor)
       setError(null)
     } catch (e) {
-      setError(errorText(e, locale, t('error.network')))
+      setError(e ?? new Error('failed'))
     }
   }
   useEffect(() => {
@@ -572,7 +575,7 @@ function Memories() {
   )
   return (
     <Section title={t('settings.memory')} desc={t('memory.desc')} page>
-      {error && <ErrorNote onRetry={() => void load()}>{error}</ErrorNote>}
+      {!!error && <LoadError error={error} onRetry={() => load()} what="settings-memory" />}
       {!items && !error && <Skeleton lines={3} />}
       {items && (items.length > 0 || editing === 'new') && <div className="mb-3 flex justify-end">{addButton}</div>}
       {items && !items.length && editing !== 'new' && (
