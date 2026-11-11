@@ -19919,6 +19919,18 @@ only with the group "leads" (3 people) said "5 people see it": the owner and an 
      (Not counted on the team servers: no read-only way from the code or fixtures.)
   3. No "transfer project" when a creator leaves: admins manage its members without joining.
   4. No notice at the upgrade, only the changelog.
+- **The deep review of the built code** (it tried every path as a non-member owner and admin) found three ways in, all
+  closed and tested in `tests/security/project-members-only.test.ts`: (1) trash the project, join one of its groups,
+  restore it: joins are now judged against a trashed project's own rules too, so they are recorded when they happen;
+  (2) a rule on a folder inside a project (an older build's, or a group folder moved in) gave an admin part of it with
+  no trace: the owner and admins now read anything inside a project only once they read its folder (are members),
+  while members of the team keep such partial access as before; (3) the activity log missed names with `'` or `` ` ``:
+  file rows are judged by their path, and text by every `projects/<name>/` in it. Also taken: the connector's group
+  answers name only project folders; a moved or copied project skill's name is left out of the log for non-members;
+  `projects` in any letter case is the project folder everywhere; folders in `projects/` that no project used become
+  projects of their own once (named after the folder, no creator) so admins can manage or delete them; a member who
+  made an older project on an admin's folder cannot delete it (it would trash the admin's folder): an admin does.
+  Files can no longer rename a project's folder (rename the project on its page).
 - **Not closed by this:** the server's backups and disk hold everything; an admin who resets a member's password or
   makes an account can sign in as them (noisy and recorded). Past room posts and exports stay.
 - **Plain words** (owner, 2026-11-11): no "role", "rule" or paths in the new screens. "Only members can open this
