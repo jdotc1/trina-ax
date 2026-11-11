@@ -1,0 +1,4 @@
+- Docker install: the image builds again with the latest stable release (0.4.0). It stopped with "this Dockerfile needs a kit with root/packages.json" for every release before 0.5.0-beta.1.
+- Docker install: the guide, `env.example`, the README and the test script all name the latest stable release (0.4.0); they named 0.3.0 and 0.4.0-beta.10.
+- Docker install: the guide says which hosts were tested. Colima and Ubuntu 24.04 hosts do not work yet (the engine sandbox cannot start). The container now says so once and waits, instead of restarting again and again.
+- The AI connection page is called by the name the app shows, Admin › Connections › Providers, in the install guides and in the messages that point to it.

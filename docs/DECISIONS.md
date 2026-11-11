@@ -19869,3 +19869,23 @@ Replaces "K — Knowledge graph" (2026-11-06), "지식 그래프로 더 빠른 �
   until 0.5.0-beta.1), whose removal note was one of those lines, and its model, which that note said would stay.
 - Version impact: **minor** (0.x): a feature and an admin API are removed; nothing an installed team set up stops
   loading.
+
+## The Docker image builds older kits; a host the container cannot fix stops once (fix/docker-install-versions, 2026-11-11)
+
+- Problem: a real self-host test of docs/INSTALL-DOCKER.md with the latest stable release (0.4.0) stopped at the build:
+  `docker/Dockerfile` read the system packages only from the kit's `root/packages.json`, which kits before
+  0.5.0-beta.1 do not have; and `docker/entrypoint.sh` always passed `--minimal`, which their installer refuses. On
+  Colima (an Ubuntu 24.04 VM) the container then restarted forever at the bubblewrap check.
+- Decision: a kit without `root/packages.sh` gets the packages its own installer checks with `--skip-apt`, read from the
+  kit's signed `app/<version>/deps.txt`, plus the list's docker group (procps, passwd, python3; allowed in
+  `tests/unit/system-packages.test.ts`), and no `--minimal`. HTML to PDF in the image (`TRINA_AX_PACKAGE_GROUPS`)
+  stays a 0.5 feature: an older kit with that argument stops with a plain message. A fixed list in the Dockerfile was
+  rejected: the kit already carries the list its installer checks.
+- The two entrypoint checks that only a host or compose change can fix (nftables, bubblewrap) print their message once
+  and wait instead of exiting: the restart policy otherwise repeats the same error without end. `docker stop` still
+  ends the wait at once. Transient failures (an engine download) still exit and are retried by the restart policy.
+- Docs name the latest stable release and list tested hosts; Colima and Ubuntu 24.04 hosts are marked as not working.
+  The AI connection page is named as the app shows it: Admin › Connections › Providers.
+- Tests: `tests/unit/system-packages.test.ts` (the fallback before the list, its deps.txt reading, `--minimal` only with
+  the list); a real build of 0.4.0 with `docker/test.sh` on Colima.
+- Version impact: **patch** (Docker folder, docs and message wording; no data change).

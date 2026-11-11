@@ -29,7 +29,7 @@ git clone https://github.com/trina-app/trina-ax.git && cd trina-ax
 bun install --frozen-lockfile && bun run demo   # http://127.0.0.1:19760 · alice / teamax-demo-1
 ```
 
-<sub>Local demo: fictional team, AI off, not for production. Needs Bun 1.3.12 and Go 1.27+. To try team conversations and @Trina, run the [Docker install](docs/INSTALL-DOCKER.md) with `TRINA_AX_VERSION=0.4.0-beta.10` and connect an AI account.</sub>
+<sub>Local demo: fictional team, AI off, not for production. Needs Bun 1.3.12 and Go 1.27+. To try team conversations and @Trina, run the [Docker install](docs/INSTALL-DOCKER.md) with the latest stable release (`TRINA_AX_VERSION=0.4.0`) and connect an AI account.</sub>
 
 ## How it works
 
@@ -51,7 +51,7 @@ bun run demo        # → http://127.0.0.1:19760 · sign in as alice / teamax-de
 
 A fictional team with six starter skills. AI is off, so no AI account is needed. Sign in as `bob` in a private window: each sees a different group folder. Needs Git, Bun 1.3.12 and Go 1.27+. This is **not a production install**. [Walkthrough](docs/QUICKSTART.md)
 
-To try team conversations and @Trina, use the [Docker install](docs/INSTALL-DOCKER.md) with `TRINA_AX_VERSION=0.4.0-beta.10` (or a later 0.4 release) and connect an AI account. The local demo has AI off, so @Trina does not answer there.
+To try team conversations and @Trina, use the [Docker install](docs/INSTALL-DOCKER.md) with the latest stable release (`TRINA_AX_VERSION=0.4.0`) and connect an AI account. The local demo has AI off, so @Trina does not answer there.
 
 ## Same request, two answers
 
