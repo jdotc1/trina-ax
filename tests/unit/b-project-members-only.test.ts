@@ -3,6 +3,8 @@
 // non-member owner and admin through every path) are tests/security/project-members-only.test.ts.
 // Fixture (tests/lib/b-harness.ts): alice, erin = marketing; bob = finance; carol = admin; dana = owner.
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test'
+import fs from 'node:fs'
+import path from 'node:path'
 import { API, uuidv7 } from '@mycel/shared/api'
 import { startHarness, type Harness } from '../lib/b-harness'
 import { atLeast, inProjectZone, RuleSet, SYSTEM_PRINCIPAL, type Principal } from '../../server/src/policy/access'
@@ -27,6 +29,9 @@ describe('the members-only zone of the permission function', () => {
     ['projects/plan', 'role', 'admin', 'read'],
     ['projects/plan', 'everyone', null, 'none'],
     ['projects/plan/open', 'everyone', null, 'read'],
+    ['projects/hr', 'user', 'alice', 'write'],
+    ['projects/hr', 'everyone', null, 'none'],
+    ['projects/hr/pay', 'group', 'finance', 'read'],
   ])
   const carol = P('carol', 'admin'), dana = P('dana', 'owner'), alice = P('alice', 'member'), bob = P('bob', 'member')
   test('inside projects/<name> the owner and admins are judged as members, by the rules at or below it only', () => {
@@ -34,10 +39,24 @@ describe('the members-only zone of the permission function', () => {
     for (const p of [carol, dana]) {
       expect(r.access(p, segs('projects/plan'))).toBe('none')
       expect(r.access(p, segs('projects/plan/a.md'))).toBe('none')
-      expect(r.access(p, segs('projects/plan/open/x.md'))).toBe('read') // everyone reads that folder, members too
+      // not even a folder inside that everyone reads: inside a project they read only as its members
+      expect(r.access(p, segs('projects/plan/open/x.md'))).toBe('none')
     }
+    expect(r.access(bob, segs('projects/plan/open/x.md'))).toBe('read') // members of the team: as before
     expect(r.access(alice, segs('projects/plan/a.md'))).toBe('write')
     expect(r.access(bob, segs('projects/plan/a.md'))).toBe('none')
+  })
+  test('a rule on a folder inside a project never lets the owner or an admin in alone (security review M2)', () => {
+    const fin = P('carol', 'admin', ['finance'])
+    expect(r.access(fin, segs('projects/hr/pay/2026.md'))).toBe('none')
+    expect(r.canList(fin, segs('projects/hr'))).toBe(false)
+    expect(r.navigator(segs('projects/hr'), 10)(fin)).toEqual({ listable: false, via: [], more: false })
+    // a member of the team in that group: as before (the folder inside is theirs to read)
+    expect(r.access(P('bob', 'member', ['finance']), segs('projects/hr/pay/2026.md'))).toBe('read')
+    // the owner or an admin who is a member of the project: the rules inside decide, as for anyone
+    const both = rules([['projects/hr', 'user', 'carol', 'read'], ['projects/hr', 'everyone', null, 'none'], ['projects/hr/pay', 'everyone', null, 'none']])
+    expect(both.access(carol, segs('projects/hr/x.md'))).toBe('read')
+    expect(both.access(carol, segs('projects/hr/pay/x.md'))).toBe('none')
   })
   test('a project folder without rules of its own: closed to the owner and admins, as it was for members by the rules above', () => {
     expect(r.access(carol, segs('projects/bare/x.md'))).toBe('none')
@@ -62,11 +81,12 @@ describe('the members-only zone of the permission function', () => {
   test('listing: an admin lists projects/ but no project folder they are not in, nor what is inside it', () => {
     expect(r.canList(carol, segs('projects'))).toBe(true)
     expect(r.canList(carol, segs('projects/bare'))).toBe(false)
-    // projects/plan: only its open folder below is readable, so it may be passed through, as for any member
-    expect(r.canList(carol, segs('projects/plan'))).toBe(true)
+    // projects/plan: its open folder below does not make it passable for them (they are not members)
+    expect(r.canList(carol, segs('projects/plan'))).toBe(false)
     expect(r.canList(carol, segs('projects/plan/secret'))).toBe(false)
     const nav = r.navigator(segs('projects/plan'), 10)
-    expect(nav(carol)).toEqual({ listable: true, via: ['projects/plan/open'], more: false })
+    expect(nav(carol)).toEqual({ listable: false, via: [], more: false })
+    expect(nav(bob)).toEqual({ listable: true, via: ['projects/plan/open'], more: false })
     expect(r.listing(carol).listable(segs('projects/bare'))).toBe(false)
   })
   test('explain() agrees with access() for an admin in the zone and never says owner-admin there', () => {
@@ -133,6 +153,8 @@ describe('the steps that run once at the first start', () => {
     db.query("INSERT INTO folder_rules (id, folder_id, subject_type, subject_id, access) VALUES (?, ?, 'role', 'admin', 'read')").run(rid, folder.id)
     const sid = uuidv7()
     db.query("INSERT INTO schedules (id, user_id, title, prompt, repeat, time, save_folder) VALUES (?, 'carol', 't', 'p', 'daily', '09:00', 'projects/Team plan')").run(sid)
+    // a folder in projects/ that no project uses (an older build's delete kept it)
+    fs.mkdirSync(path.join(h.team, 'projects', 'Left over'), { recursive: true })
     setSetting(db, 'projectsMembersOnly.v1', null)
     db.query("DELETE FROM settings WHERE key = 'projectsMembersOnly.v1'").run()
     await membersOnlyOnce(h.ctx)
@@ -141,6 +163,11 @@ describe('the steps that run once at the first start', () => {
     expect(db.query('SELECT 1 FROM folder_rules WHERE id = ?').get(rid)).toBeNull()
     expect((db.query('SELECT save_lapse_reason FROM schedules WHERE id = ?').get(sid) as { save_lapse_reason: string }).save_lapse_reason).toBe('rules')
     expect(db.query("SELECT 1 FROM audit_log WHERE action = 'projects.members_only'").get()).not.toBeNull()
+    // the leftover folder became a project of its own the owner and admins manage
+    const adopted = db.query("SELECT name, created_by FROM projects WHERE folder_path = 'projects/Left over'").get() as { name: string; created_by: string | null } | null
+    expect(adopted).toEqual({ name: 'Left over', created_by: null })
+    const m = await h.api('carol').call(API.listProjects, { query: { manage: true } as never })
+    expect(m.items.some((x) => x.folderPath === 'projects/Left over' && x.membersEditable)).toBe(true)
     // once: a role rule made after it stays (a second start does nothing)
     db.query("INSERT INTO folder_rules (id, folder_id, subject_type, subject_id, access) VALUES (?, ?, 'role', 'admin', 'read')").run(rid, folder.id)
     await membersOnlyOnce(h.ctx)

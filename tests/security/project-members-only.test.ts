@@ -321,3 +321,52 @@ describe('what the owner and admins keep, and the way in that shows', () => {
     expect(h.ctx.db.query('SELECT 1 FROM trash_items WHERE id = ?').get(tw)).toBeNull()
   })
 })
+
+describe('the review\'s attacks (security review of the built code)', () => {
+  test('M1: trash the project, join one of its groups, restore it: the join is recorded and told', async () => {
+    const grp = await raw('dana', 'POST', '/api/admin/groups', { name: 'crew m1', memberIds: ['alice', 'erin'] })
+    const id = (await h.api('alice').call(API.createProject, { body: { name: 'M one', participants: [{ subjectType: 'group', subjectId: grp.json.id }], instructions: '' } })).id
+    await h.api('alice').call(API.saveContent, { body: { path: 'projects/M one/m.md', content: `${K.file}\n`, baseSha256: null } })
+    expect((await raw('carol', 'DELETE', `/api/projects/${id}`)).status).toBe(204)
+    expect((await raw('dana', 'PATCH', `/api/admin/groups/${grp.json.id}`, { memberIds: ['erin', 'carol'] })).status).toBe(200)
+    expect((await raw('carol', 'POST', `/api/projects/${id}/restore`)).status).toBe(200)
+    expect((await raw('carol', 'GET', `/api/files/content?path=${q('projects/M one/m.md')}`)).status).toBe(200)
+    const row = h.ctx.db.query("SELECT detail FROM audit_log WHERE action = 'project.member_gained' AND json_extract(detail, '$.userId') = 'carol' AND json_extract(detail, '$.projectId') = ?").get(id)
+    expect(row).not.toBeNull()
+    const told = h.ctx.db.query("SELECT user_id FROM project_notices WHERE event_type = 'project.joined'").all() as { user_id: string }[]
+    expect(told.map((x) => x.user_id)).toContain('alice')
+  })
+
+  test('M2: a rule on a folder inside a project never lets the owner or an admin in alone', async () => {
+    const grp = await raw('dana', 'POST', '/api/admin/groups', { name: 'crew m2', memberIds: [] })
+    const id = (await h.api('alice').call(API.createProject, { body: { name: 'M two', participants: [], instructions: '' } })).id
+    await h.api('alice').call(API.mkdir, { body: { path: 'projects/M two/hr' } })
+    const M2 = 'SEC-PMO-M2-d40'
+    await h.api('alice').call(API.saveContent, { body: { path: 'projects/M two/hr/pay.md', content: `${M2}\n`, baseSha256: null } })
+    // a rule inside it, as Folder permissions of an older build could set it
+    const { legacyProjectFolder } = await import('../lib/legacy-project')
+    legacyProjectFolder(h.ctx.db, h.team, 'projects/M two/hr', [{ subjectType: 'group', subjectId: grp.json.id, access: 'read' }])
+    await raw('dana', 'PATCH', `/api/admin/groups/${grp.json.id}`, { memberIds: ['carol'] })
+    expect((await raw('carol', 'GET', `/api/files/content?path=${q('projects/M two/hr/pay.md')}`)).status).toBe(404)
+    expect((await raw('carol', 'GET', `/api/files/tree?path=${q('projects/M two')}`)).status).toBe(404)
+    expect((await raw('carol', 'GET', `/api/files/search?q=${q(M2)}`)).text).not.toContain(M2)
+    expect((await raw('carol', 'GET', `/api/files/find?q=${q('pay')}`)).text).not.toContain('M two/hr')
+    void id
+  })
+
+  test('M3: names with \' and ` inside a project stay out of the activity log, its path filter and the skill changes', async () => {
+    const M3 = 'SEC-PMO-M3-e51', M3S = 'SEC-PMO-M3S-f62'
+    const id = (await h.api('alice').call(API.createProject, { body: { name: "Bob's `plan`", participants: [], instructions: '' } })).id
+    const dir = h.rt().store.projectRow(id)!.folder_path
+    await h.api('alice').call(API.saveContent, { body: { path: `${dir}/John's ${M3}.md`, content: 'x\n', baseSha256: null } })
+    await h.api('alice').call(API.saveContent, { body: { path: `${dir}/skills/${M3S}/SKILL.md`, content: `---\nname: ${M3S}\ndescription: d\n---\nx\n`, baseSha256: null } })
+    for (const who of OUTSIDERS) {
+      const log = await raw(who, 'GET', '/api/admin/audit?limit=200')
+      expect(log.text, who).not.toContain(M3)
+      expect(log.text, who).not.toContain(M3S)
+      expect((await raw(who, 'GET', `/api/admin/audit?path=${q(dir)}`)).json.items).toEqual([])
+      const skills = await raw(who, 'GET', '/api/admin/skill-changes')
+      expect(skills.text, who).not.toContain(M3S)
+    }
+  })
+})

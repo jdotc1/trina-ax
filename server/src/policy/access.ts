@@ -134,6 +134,12 @@ export class RuleSet {
     // rules at or below projects/<name> only (docs/DECISIONS.md "Project contents only for members")
     const staff = p.role === 'owner' || p.role === 'admin'
     if (staff && !inProjectZone(segs)) { if (why) why.kind = 'owner-admin'; return 'write' }
+    // and inside a project only once they read the project's own folder (are its members): a rule on a folder inside it
+    // never lets them in alone, so nobody reads part of a project without showing in its members (security review M2)
+    if (staff && segs.length > ZONE_FLOOR && !atLeast(this.decide(p, segs.slice(0, ZONE_FLOOR), null), 'read')) {
+      if (why) this.decide(p, segs.slice(0, ZONE_FLOOR), why)
+      return 'none'
+    }
     const q = staff ? zoneSubject(p) : p
     const floor = staff ? ZONE_FLOOR : 0
     if (why) why.who = q
@@ -273,6 +279,8 @@ export class RuleSet {
       if (p.system) return { listable: true, via: [], more: false }
       const zone = isStaff(p) && inProjectZone(within)
       if (isStaff(p) && !zone) return { listable: true, via: [], more: false }
+      // (inside a project they do not read, nothing is readable for them: decide())
+      if (zone && !atLeast(this.access(p, within.slice(0, ZONE_FLOOR)), 'read')) return { listable: false, via: [], more: false }
       const found = scan(zone ? zoneSubject(p) : p, zone)
       const top = [...found.top]
       // the person's own users/<id> is below the team root, readable and topmost (nothing above it is a candidate)
