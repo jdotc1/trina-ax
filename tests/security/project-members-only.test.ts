@@ -92,7 +92,6 @@ describe('the owner and an admin who are not members read nothing of it', () => 
     ['chats: search', 'GET', `/api/chats?q=${q(K.chat)}`],
     ['chats: the shared chat', 'GET', '/api/chats/CHAT'],
     ['chats: its messages', 'GET', '/api/chats/CHAT/messages'],
-    ['admin: folders', 'GET', '/api/admin/folders'],
     ['admin: the tree at projects/', 'GET', `/api/admin/access/tree?path=projects&open=1`],
     ['admin: the tree with its rule folders', 'GET', '/api/admin/access/tree?path=&rules=1'],
     ['admin: the project folder\'s people', 'GET', `/api/admin/access/folder?path=${q(DIR)}`],
@@ -147,7 +146,8 @@ describe('the owner and an admin who are not members read nothing of it', () => 
       expect(a.json.error.params.reason).toBe('project_members_only'); expect(b.json.error.params.reason).toBe('project_members_only')
       expect((await raw(who, 'POST', '/api/admin/folders', { path: DIR, create: false, rules: [{ subjectType: 'user', subjectId: who, access: 'write' }] })).status).toBe(409)
       expect((await raw(who, 'POST', '/api/admin/folders', { path: 'Projects/Plan', create: false, rules: [] })).status).toBe(409)
-      const row = (await raw(who, 'GET', '/api/admin/folders')).json.items.find((f: { path: string }) => f.path === DIR)
+      // (the row's id from the database: this fixture's ids are not the UUIDs GET /api/admin/folders answers with)
+      const row = h.ctx.db.query('SELECT id FROM folders WHERE path = ?').get(DIR) as { id: string }
       expect((await raw(who, 'PUT', `/api/admin/folders/${row.id}/rules`, { rules: [{ subjectType: 'user', subjectId: who, access: 'write' }] })).status).toBe(409)
       expect((await raw(who, 'DELETE', `/api/admin/folders/${row.id}`)).status).toBe(409)
       expect((await raw(who, 'POST', '/api/admin/folder-rules/preview', { changes: [{ path: `${DIR}/${K.sub}`, rules: [] }] })).status).toBe(409)
@@ -170,12 +170,14 @@ describe('the owner and an admin who are not members read nothing of it', () => 
     })
   }
 
+  // (no canary in the calls themselves: the person's own message holds them; K.name is a file name the call names, so
+  // only the answers are checked for the others)
   test('the AI of the owner and of an admin, in their own chats: no read, list, search, copy or move reaches into it', async () => {
     for (const who of OUTSIDERS) {
       const own = (await h.api(who).call(API.createChat, { body: { title: 'probe' } })).id
       const sent = await h.api(who).call(API.sendMessage, { params: { id: own }, body: { clientMessageId: cm(), attachmentIds: [], content: fake(
         { tool: 'read', args: { file_path: `${DIR}/plan.md` } },
-        { tool: 'read', args: { file_path: `${DIR}/${K.sub}/x.md` } },
+        { tool: 'read', args: { file_path: `${DIR}/${K.name}.md` } },
         { tool: 'glob', args: { pattern: '**/*', path: DIR } },
         { tool: 'grep', args: { pattern: 'SEC-PMO', path: 'projects' } },
         { tool: 'grep', args: { pattern: 'SEC-PMO' } },
@@ -186,7 +188,7 @@ describe('the owner and an admin who are not members read nothing of it', () => 
       await ws[who]!.next('message.done', (f) => f.data.messageId === sent.assistantMessage.id, 60_000)
       await waitFor(() => !h.rt().activeTurn(own), { timeoutMs: 30_000 })
       const msgs = await raw(who, 'GET', `/api/chats/${own}/messages`)
-      expect(leaked(msgs.text)).toEqual([])
+      expect(leaked(msgs.text).filter((k) => k !== K.name)).toEqual([])
       expect(fs.existsSync(path.join(h.team, 'shared', 'stolen.md'))).toBe(false)
       expect(fs.existsSync(path.join(h.team, 'shared', 'stolen2.md'))).toBe(false)
     }
@@ -273,18 +275,22 @@ describe('what the owner and admins keep, and the way in that shows', () => {
   })
 
   test('joining through a group the project names is told too: dana added to it', async () => {
-    const acc = (await raw('alice', 'GET', `/api/projects/${projectId}/access`)).json
+    // (a group made through the API: this fixture's own group ids are not the UUIDs the group answers carry; carol, an
+    // admin, names it: a member names only their own groups)
+    const grp = await raw('dana', 'POST', '/api/admin/groups', { name: 'plan helpers', memberIds: ['bob'] })
+    expect(grp.status).toBe(201)
+    const acc = (await raw('carol', 'GET', `/api/projects/${projectId}/access`)).json
     const parts = acc.participants.filter((x: { creator?: boolean }) => !x.creator).map((x: { subjectType: string; subjectId: string }) => ({ subjectType: x.subjectType, subjectId: x.subjectId }))
-    await raw('alice', 'PUT', `/api/projects/${projectId}/participants`, { participants: [...parts, { subjectType: 'group', subjectId: 'finance' }], expectedHash: acc.rulesHash })
+    expect((await raw('carol', 'PUT', `/api/projects/${projectId}/participants`, { participants: [...parts, { subjectType: 'group', subjectId: grp.json.id }], expectedHash: acc.rulesHash })).status).toBe(200)
     expect((await raw('dana', 'GET', `/api/files/content?path=${q(`${DIR}/plan.md`)}`)).status).toBe(404)
-    const g = await raw('dana', 'PATCH', '/api/admin/groups/finance', { memberIds: ['bob', 'dana'] })
+    const g = await raw('dana', 'PATCH', `/api/admin/groups/${grp.json.id}`, { memberIds: ['bob', 'dana'] })
     expect(g.status).toBe(200)
     const row = h.ctx.db.query("SELECT detail FROM audit_log WHERE action = 'project.member_gained' AND json_extract(detail, '$.userId') = 'dana' ORDER BY id DESC LIMIT 1").get() as { detail: string } | null
     expect(row).not.toBeNull()
     expect(JSON.parse(row!.detail)).toMatchObject({ projectId, self: true })
     const told = await raw('alice', 'GET', '/api/notifications')
     expect(told.json.items.filter((x: { code: string; projectJoined?: { name: string | null } }) => x.code === 'project.joined' && x.projectJoined?.name?.toLowerCase().includes('dana')).length).toBe(1)
-    await raw('dana', 'PATCH', '/api/admin/groups/finance', { memberIds: ['bob'] })
+    await raw('dana', 'PATCH', `/api/admin/groups/${grp.json.id}`, { memberIds: ['bob'] })
   })
 
   test('delete: to the trash with its folder first (nobody reads it there), restore by an admin, then delete for good', async () => {

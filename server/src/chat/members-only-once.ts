@@ -14,15 +14,16 @@ import type { AppContext } from '../context'
 import { audit } from '../admin/audit'
 import { getSetting, setSetting } from '../admin/settings'
 import { inZone } from '../policy/zone'
-import { markLapsed } from './schedule-scope'
-import { resetEngineSessions } from './runtime'
 import type { ScheduleRow } from './schedules'
 
 const DONE = 'projectsMembersOnly.v1'
 
-export function membersOnlyOnce(ctx: AppContext): void {
+export async function membersOnlyOnce(ctx: AppContext): Promise<void> {
   try {
     if (getSetting(ctx.db, DONE)) return
+    // (loaded here, not at the top: context.ts runs this at start, before those modules may be imported)
+    const { markLapsed } = await import('./schedule-scope')
+    const { resetEngineSessions } = await import('./runtime')
     const db = ctx.db
     const staff = new Set((db.query("SELECT id FROM users WHERE role IN ('owner', 'admin')").all() as { id: string }[]).map((u) => u.id))
     // 1. shared answers of projects in projects/

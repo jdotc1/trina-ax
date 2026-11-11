@@ -187,7 +187,7 @@ export function createContext(o: ContextOptions): AppContext {
   trackSkillChanges(ctx)
   // team projects are members only: once, what the owner and admins kept from reading every project by role goes
   // (chat/members-only-once.ts)
-  membersOnlyOnce(ctx)
+  void membersOnlyOnce(ctx)
   if (config.engine.authModeAlias) log.info(`authMode "${config.engine.authModeAlias}" is read as "managed"`)
   const gateway = anthropicGateway(config)
   if (gateway) log.info('engine.anthropicGateway: Claude requests go to the gateway, on its models only; Claude subscription connections are off', { gateway: gatewayHost(gateway), models: gatewayModelIds(gateway) })

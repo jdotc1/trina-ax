@@ -229,6 +229,17 @@ export const SPECS: Record<string, Spec> = {
   // who sees alice's team project: alice (its creator), the owner and admins see and change it; erin is a participant
   // but did not make it (403), bob does not see it (404)
   previewProjectAccess: { build: (c, w) => c.post('/api/projects/access-preview', { projectId: w.ids.projTeam, participants: [] }), scope: 'alice-project' },
+  // a team project alice put in the trash (its folder with it) comes back only by the owner or an admin, who manage it
+  // without reading it (docs/DECISIONS.md "Project contents only for members"); alice herself, its creator, may not
+  restoreProject: { build: async (c, w) => {
+    const made = await w.as.memberIn.post('/api/projects', { name: `Back ${Math.random().toString(36).slice(2, 8)}`, participants: [], instructions: '' })
+    await w.as.memberIn.del(`/api/projects/${made.json.id}`)
+    return c.post(`/api/projects/${made.json.id}/restore`)
+  }, scope: 'admins',
+    check: async (r, w, who) => {
+      if (who !== 'owner' && who !== 'admin') return
+      if (r.json?.member !== false || r.json?.instructions !== '') throw new Error(`${who}: a restored project answered with its contents`)
+    } },
   getProjectAccess: { build: (c, w) => c.get(`/api/projects/${w.ids.projTeam}/access`), scope: 'alice-project' },
   putProjectParticipants: { build: (c, w) => c.put(`/api/projects/${w.ids.projTeam}/participants`, { participants: [{ subjectType: 'user', subjectId: 'bob' }], expectedHash: 'not-the-hash' }), scope: 'alice-project',
     check: (r, w, who) => {
