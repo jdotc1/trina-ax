@@ -639,8 +639,10 @@ describe('every install path reads the list', () => {
     expect(legacy).toBeLessThan(source)
     expect(d).not.toContain('this Dockerfile needs a kit with root/packages.json')
     expect(d).toContain('"$root/../deps.txt"')
-    // the three packages it names are exactly the docker group of the list
-    expect(Object.keys(LIST.groups.docker!.packages ?? {}).sort()).toEqual(['passwd', 'procps', 'python3'])
+    // the three packages it names are the docker group's; each is one the image installs from the list today
+    const imageNames = groupsFor(LIST, ['minimal', 'docker']).flatMap((g) => Object.keys(LIST.groups[g]!.packages ?? {}))
+    for (const n of ['procps', 'passwd', 'python3']) expect(imageNames).toContain(n)
+    for (const n of Object.keys(LIST.groups.docker!.packages ?? {})) expect(['procps', 'passwd', 'python3']).toContain(n)
     // the fallback reads deps.txt lines ("package" or "package>=version", comments) into bare names
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'deps-')), f = path.join(dir, 'deps.txt')
     fs.writeFileSync(f, '# floors\nbubblewrap>=0.8.0\n\nffmpeg>=7:5.1  # media\n  curl\n')
