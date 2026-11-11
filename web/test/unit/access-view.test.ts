@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { AccessTreeNode, PersonFolderAccess } from '@mycel/shared/api'
 import { DICTS, translate, type MessageKey, type Params } from '../../src/i18n'
-import { ancestorsOf, cleanPrefix, isSkillsPath, countRows, folderName, groupRows, isRestricted, kindText, levelOf, nearestRuleFolder, nodeName, parentOf, reasonText, riskOf, riskTexts, rulesApply, sectionOf, shortPath, skillEditorsElsewhere, skillEditorsText, skillFoldersWithEditors, skillManagersOf, skillsLockedText, sourceSaysSomething, sourceText, summaryLines, whoSeesText, type Names } from '../../src/lib/access-view'
+import { ancestorsOf, cleanPrefix, isSkillsPath, countRows, folderName, groupRows, isRestricted, kindText, levelOf, manageMembersLink, membersOnlyFolder, membersOnlyText, nearestRuleFolder, nodeName, parentOf, reasonText, riskOf, riskTexts, rulesApply, sectionOf, shortPath, skillEditorsElsewhere, skillEditorsText, skillFoldersWithEditors, skillManagersOf, skillsLockedText, sourceSaysSomething, sourceText, summaryLines, whoSeesText, type Names } from '../../src/lib/access-view'
 import { personViewLink } from '../../src/pages/admin/AccessResults'
 
 const ko = (key: MessageKey, p?: Params) => translate('ko', key, p)
@@ -414,5 +414,33 @@ describe('stage 6–7: who can edit team skills, in words', () => {
     expect(skillEditorsElsewhere(en, [staff, root({ subject: all, access: 'write', count: 9 })], 12)).toEqual(['9 others'])
     // a name with its own honorific keeps one
     expect(skillEditorsElsewhere(ko, [root({ subject: { type: 'user', id: 'k', name: '김대표님' }, access: 'write', count: 1 })], 12)).toEqual(['김대표님'])
+  })
+})
+
+describe('a team project\'s folder (docs/DECISIONS.md "Project contents only for members")', () => {
+  const who = (w: Partial<AccessTreeNode['who'][number]>[]): Pick<AccessTreeNode, 'who'> => ({
+    who: w.map((x) => ({ reason: 'rule', folder: 'projects/acme', subject: null, access: 'write', count: 1, ...x }) as AccessTreeNode['who'][number]),
+  })
+  test('"멤버만" and its members\' count, never "팀장과 관리자만"; nobody active: said so', () => {
+    expect(membersOnlyText(ko, who([{ subject: { type: 'group', id: 'g1', name: 'Leads' }, count: 3 }, { reason: 'no-rule', access: 'none', count: 4 }]))).toBe('멤버만 · 3명이 봐요')
+    expect(membersOnlyText(en, who([{ subject: { type: 'user', id: 'bob', name: 'Bob' }, count: 1 }]))).toBe('Members only · 1 person sees it')
+    // the owner and admins outside it are no members: nobody by a rule is "no active members", not "owner and admins only"
+    const none = membersOnlyText(ko, who([{ reason: 'no-rule', access: 'none', count: 5 }]))
+    expect(none).toBe('멤버만 · 활동 중인 멤버 없음')
+    expect(none).not.toContain(ko('accessTree.who.adminsOnly'))
+    expect(en('accessTree.membersOnly')).toBe('Members only')
+    expect(ko('accessTree.membersOnly')).toBe('멤버만')
+  })
+  test('which folders: a project\'s own folder in projects/ (any letter case); not a folder inside, nor one made before elsewhere', () => {
+    expect(membersOnlyFolder({ path: 'projects/acme', kinds: ['project'] })).toBe(true)
+    expect(membersOnlyFolder({ path: 'Projects/acme', kinds: ['project', 'rules'] })).toBe(true)
+    expect(membersOnlyFolder({ path: 'projects/acme', kinds: ['rules'] })).toBe(false)
+    expect(membersOnlyFolder({ path: 'shared/acme', kinds: ['project'] })).toBe(false)
+    expect(membersOnlyFolder({ path: 'projects', kinds: ['top'] })).toBe(false)
+  })
+  test('"멤버 관리" opens the project\'s members dialog on its page', () => {
+    expect(manageMembersLink({ projects: [{ id: 'p 1', name: 'Acme' }] })).toBe('/projects/p%201?members=1')
+    expect(manageMembersLink({})).toBeNull()
+    expect(ko('accessTree.manageMembers')).toBe('멤버 관리')
   })
 })

@@ -3,12 +3,15 @@
 // inside carry rules of their own, the people by name as Admin › Folder permissions lists them (FolderPeople.tsx), and
 // the way to that page, and [규칙 바꾸기]: Admin's own edit panel for this folder, which comes back here when it closes
 // (AccessTree's `from=files`). Loaded for admins only, and every answer here is from an admin endpoint the server
-// refuses to members.
+// refuses to members. A team project's folder in projects/ says "멤버만" where the source would be: its members decide,
+// on the project's page, and the owner and admins see it only as members (docs/DECISIONS.md "Project contents only for
+// members").
 import { useEffect, useMemo, useState } from 'react'
 import { SlidersHorizontal } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api, API } from '../../lib/api'
 import { sourceSaysSomething, sourceText, type Names } from '../../lib/access-view'
+import { isProjectsFolder } from '../../lib/projectFolders'
 import { useT } from '../../i18n'
 import { Button, Skeleton } from '../../components/ui'
 import type { AdminSelf } from '../../components/FolderAccess'
@@ -41,7 +44,11 @@ export default function FolderAccessAdmin({ path, self, ready, change, onLeave }
   if (!ready) return <Skeleton lines={4} />
   return (
     <div className="space-y-2" data-testid="folder-access-admin">
-      {self && sourceSaysSomething(self.self) && (
+      {isProjectsFolder(path) ? (
+        <p className="text-sm text-muted" data-testid="folder-access-members-only">
+          {t('accessTree.membersOnly')}
+        </p>
+      ) : self && sourceSaysSomething(self.self) && (
         <p className="text-sm text-muted" data-testid="folder-access-source">
           {sourceText(t, self.self, self.members)}
         </p>

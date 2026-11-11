@@ -91,6 +91,8 @@ test('the whole team, and a team project\'s folder with its own count and a way 
   await expect(chip(page)).toHaveText(en('folderAccess.people', { n: audience }))
   await chip(page).click()
   await expect(page.getByTestId('folder-access-project')).toContainText(en('folderAccess.project', { name: 'Kite' }))
+  // its members only (docs/DECISIONS.md "Project contents only for members"): no "(owner and admins included)"
+  await expect(page.getByTestId('folder-access-headline')).toHaveText(en('folderAccess.people', { n: audience }))
   await page.getByTestId('folder-access-open-project').click()
   await expect(page).toHaveURL(new RegExp(`/projects/${p.id}`))
 })
@@ -124,7 +126,7 @@ test('a project made before outside projects/: an admin reads where its members 
   await page.goto('/files?path=docs')
   await chip(page).click()
   await expect(page.getByTestId('folder-access-project')).toContainText(en('folderAccess.project', { name: 'Old docs' }))
-  await expect(page.getByTestId('folder-access-members-hint')).toHaveText(en('projects.legacyNote', { folder: 'docs' }))
+  await expect(page.getByTestId('folder-access-members-hint')).toHaveText(en('projects.legacyNote'))
   await expect(page.getByTestId('folder-access-members')).toHaveCount(0)
   await expect(page.getByTestId('folder-access-change')).toBeVisible()
 })
@@ -284,4 +286,44 @@ test.describe('phone', () => {
     await expect(page).toHaveURL(/\/files\?path=marketing$/)
     await expect(panel(page)).toBeVisible()
   })
+})
+
+// docs/DECISIONS.md "Project contents only for members"
+test('a team project\'s folder for its members and the owner: its members\' count, "Members only", no rules editor', async ({ page }) => {
+  await signIn(page)
+  const made = await page.request.post('/api/projects', { headers: { [CSRF_HEADER]: '1' }, data: { name: 'Kite', participants: [{ subjectType: 'user', subjectId: 'bob' }] } })
+  const p = (await made.json()) as { folderPath: string }
+  await page.goto(`/files?path=${encodeURIComponent(p.folderPath)}`)
+  // Olga and Bob: the owner is in it as its creator; Dana and Eve (admins) are not counted
+  await expect(chip(page)).toHaveText(en('folderAccess.people', { n: 2 }))
+  await expect(chip(page)).toHaveAccessibleName(en('folderAccess.people', { n: 2 }))
+  await chip(page).click()
+  await expect(page.getByTestId('folder-access-headline')).toHaveText(en('folderAccess.people', { n: 2 }))
+  await expect(page.getByTestId('folder-access-headline')).not.toContainText(t['accessTree.who.adminsOnly'])
+  await expect(page.getByTestId('folder-access-members-only')).toHaveText(t['accessTree.membersOnly'])
+  await expect(page.getByTestId('folder-access-change')).toHaveCount(0)
+})
+
+test('the projects folder takes no new folder or upload; a project\'s folder the owner is not in opens the project\'s page', async ({ page }) => {
+  await signIn(page)
+  const made = await page.request.post('/__test/project', { data: { name: 'falcon', by: 'bob', files: { 'plan.md': 'plan', 'drafts/a.md': 'a' } } })
+  const { id } = (await made.json()) as { id: string }
+  await page.goto('/files?path=projects')
+  await expect(page.getByTestId('crumb').last()).toBeVisible()
+  await expect(page.getByTestId('new-folder-button')).toHaveCount(0)
+  await expect(page.getByTestId('upload-button')).toHaveCount(0)
+  await expect(page.getByTestId('folder-upload-button')).toHaveCount(0)
+  // not hers to read: its page, where she can add herself, not "folder not found"; a folder inside it too
+  for (const path of ['projects/falcon', 'projects/falcon/drafts']) {
+    await page.goto(`/files?path=${encodeURIComponent(path)}`)
+    await expect(page).toHaveURL(new RegExp(`/projects/${id}$`))
+    await expect(page.getByTestId('project-members-only')).toBeVisible()
+  }
+  await expect(page.getByText(t['files.folderNotFound'])).toHaveCount(0)
+  // Bob reads it: his folder as before
+  const bob = await page.context().browser()!.newPage({ baseURL: new URL(page.url()).origin, locale: 'en-US' })
+  await signIn(bob, BOB)
+  await bob.goto('/files?path=projects%2Ffalcon')
+  await expect(row(bob, 'plan.md')).toBeVisible()
+  await bob.close()
 })

@@ -11,7 +11,10 @@
 // uploaded into it. The "move" action stays the keyboard way to do the same.
 // A whole folder goes up from the picker or a drop, with its subfolders (lib/folderUpload.ts, components/FolderUploads.tsx).
 // A project is a folder with instructions: a folder's menu opens its project (lib/projectFolders.ts). New projects are made
-// on the Projects page, in a new projects/<name> (docs/DECISIONS.md "Projects live only in projects/").
+// on the Projects page, in a new projects/<name> (docs/DECISIONS.md "Projects live only in projects/"): the projects
+// folder itself offers no new folder or upload. A project's folder is its members' (docs/DECISIONS.md "Project contents
+// only for members"): the owner or an admin who manages a project without being a member, sent to its folder, goes to
+// the project's page instead (there they can add themselves), not to "folder not found".
 import clsx from 'clsx'
 import { ArchiveRestore, BookmarkPlus, ChevronRight, Copy, Download, Eye, File as FileIcon, FileImage, FileSpreadsheet, FileText, Folder, FolderInput, FolderKanban, FolderPlus, FolderUp, History, Home, Lock, MessageSquarePlus, MoreHorizontal, Paperclip, Pencil, Presentation, Search, Signpost, Sparkles, RefreshCw, Trash2, Upload, Users, X, FileCode, FileArchive, FileAudio, FileVideo } from 'lucide-react'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
@@ -25,7 +28,7 @@ import { topFoldersFirst, useFolderWords } from '../lib/folderLabels'
 import { droppedEntries, planFromEntries, planFromInput, type FolderPlan } from '../lib/folderUpload'
 import { baseName, crumbs, isConflictCopy, isInside, joinPath, nameProblem, parentPath } from '../lib/paths'
 import { iconKind, previewKind, type FileIconKind } from '../lib/preview'
-import { folderProjectAction, projectsByFolder, type FolderProjectAction } from '../lib/projectFolders'
+import { folderProjectAction, isProjectsTop, projectFolderOf, projectsByFolder, type FolderProjectAction } from '../lib/projectFolders'
 import { openTeamFile, panelExpandedNow, useSidePanel } from '../lib/sidePanel'
 import { useTeamAttach } from '../lib/useTeamAttach'
 import { cancelUpload, uploadFile } from '../lib/upload'
@@ -44,7 +47,7 @@ import { TeamFilesEntry } from '../components/onboarding/TeamFilesStep'
 import SuggestSkillDialog from '../components/SuggestSkillDialog'
 import { SkillIssues } from '../components/SkillIssues'
 import { isSkillsPath } from '../lib/skillIssues'
-import { useMeStrict } from '../store/session'
+import { isAdmin, useMeStrict } from '../store/session'
 import { Badge, Button, EmptyState, ErrorNote, IconButton, Modal, Skeleton, TabPanel, Tabs, confirmDialog, promptDialog, useMediaQuery } from '../components/ui'
 import { Tooltip } from '../components/Tooltip'
 
@@ -183,6 +186,22 @@ export default function Files() {
 
   const go = useCallback((p: string, sel?: string) => setParams(sel ? { path: p, select: sel } : p ? { path: p } : {}), [setParams])
 
+  /** A folder at or under projects/<name> that the owner or an admin cannot open: the project they manage there
+   * without being a member (GET /api/projects?manage=1, by its folder), whose page they go to instead (true then). */
+  const toProjectPage = async (at: string): Promise<boolean> => {
+    const folder = projectFolderOf(at)
+    if (!folder || !isAdmin(me)) return false
+    const key = (p: string) => p.normalize('NFC').toLowerCase()
+    try {
+      const p = (await api.call(API.listProjects, { query: { manage: '1' } })).items.find((x) => key(x.folderPath) === key(folder) && x.member === false)
+      if (!p) return false
+      navigate(`/projects/${p.id}`, { replace: true })
+      return true
+    } catch {
+      return false
+    }
+  }
+
   /** the folder the table last showed: a not_found for it means access changed while it was open (tab 5 "권한 회수") */
   const shown = useRef<string | null>(null)
   /** only the latest listing request may set the table: an older answer arriving last (the first listing of a slow
@@ -199,6 +218,9 @@ export default function Files() {
     } catch (e) {
       if (mine !== loads.current) return
       if (isApiError(e, 'not_found') && path) {
+        // a project's folder (or a folder in it) the owner or an admin manages without being a member: its page
+        if (await toProjectPage(path)) return
+        if (mine !== loads.current) return
         // gone or not visible: climb to the nearest folder we can see, then say so once (not once per level)
         const wasShown = shown.current === path
         let up = parentPath(path)
@@ -262,6 +284,10 @@ export default function Files() {
   }
 
   const canWrite = tree?.access === 'write'
+  // the projects folder itself: its folders are projects, made on the Projects page (the server refuses anything else
+  // there, 409 projects_root): no new folder or upload
+  const projectsTop = isProjectsTop(path)
+  const canAdd = canWrite && !projectsTop
   const errText = (e: unknown) => errorText(e, locale, t('error.network'))
   const fail = (e: unknown) => toast({ level: 'error', text: errText(e) })
 
@@ -735,12 +761,14 @@ export default function Files() {
             <IconButton label={t('common.refresh')} className="max-md:hidden" onClick={() => void load()}>
               <RefreshCw size={16} />
             </IconButton>
+            {!projectsTop && (
             <Tooltip label={t('files.newFolder')}>
-              <Button size="sm" variant="ghost" className={clsx(tree && !canWrite && 'max-md:hidden')} onClick={mkdir} disabled={!canWrite} aria-label={t('files.newFolder')}>
+              <Button size="sm" variant="ghost" className={clsx(tree && !canWrite && 'max-md:hidden')} onClick={mkdir} disabled={!canWrite} aria-label={t('files.newFolder')} data-testid="new-folder-button">
                 <FolderPlus size={15} aria-hidden /> <span className="@max-2xl:hidden">{t('files.newFolder')}</span>
               </Button>
             </Tooltip>
-            {canPickFolder && (
+            )}
+            {canPickFolder && !projectsTop && (
               <>
                 <Tooltip label={t('files.uploadFolder')}>
                   <Button size="sm" variant="ghost" className="max-sm:hidden" onClick={() => folderInput.current?.click()} disabled={!canWrite} aria-label={t('files.uploadFolder')} data-testid="folder-upload-button">
@@ -761,11 +789,13 @@ export default function Files() {
                 />
               </>
             )}
+            {!projectsTop && (
             <Tooltip label={t('files.upload')}>
               <Button size="sm" variant="primary" className={clsx(tree && !canWrite && 'max-md:hidden')} onClick={() => fileInput.current?.click()} disabled={!canWrite} aria-label={t('files.upload')} data-testid="upload-button">
                 <Upload size={15} aria-hidden /> <span className="@max-2xl:hidden">{t('files.upload')}</span>
               </Button>
             </Tooltip>
+            )}
             <input
               ref={fileInput}
               type="file"
@@ -841,8 +871,8 @@ export default function Files() {
                 )}
                 {!tree && !error && <Skeleton lines={8} className="p-4" />}
                 {tree && !tree.entries.length && (
-                  <EmptyState icon={<Upload size={28} />} title={canWrite ? t('files.emptyDrop') : t('files.emptyReadOnly')}>
-                    {canWrite && (
+                  <EmptyState icon={<Upload size={28} />} title={canAdd ? t('files.emptyDrop') : t('files.emptyReadOnly')}>
+                    {canAdd && (
                       <Button size="sm" className="mt-2" onClick={() => fileInput.current?.click()}>
                         {t('files.upload')}
                       </Button>

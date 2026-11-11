@@ -362,7 +362,8 @@ export const ProjectAccess = z.object({
   /** how many active people see the project now: its members (for a project in projects/ the owner and admins only when
    * they are members; docs/DECISIONS.md "Project contents only for members") */
   people: z.number().int().nonnegative(),
-  /** rules on folders inside the project that the caller cannot read (not listed in otherRules, only counted). Absent: 0 */
+  /** folders inside the project with rules of their own that the caller cannot read (their rules are not listed in
+   * otherRules; only the folders are counted). Absent: 0 */
   otherRulesHidden: z.number().int().positive().optional(),
 })
 export type ProjectAccess = z.infer<typeof ProjectAccess>

@@ -191,7 +191,7 @@ export function projectAccess(ctx: AppContext, r: ProjectRow, p: Principal): Pro
   participants.sort((a, b) => Number(!!b.creator) - Number(!!a.creator) || (a.subjectType === b.subjectType ? a.name.localeCompare(b.name) : a.subjectType === 'group' ? -1 : 1))
   const otherRules: ProjectOtherRule[] = rules.filter((x) => !isParticipantRule(x) && !isFloor(x)).map((x) => ({ path: r.folder_path, subjectType: x.subjectType, subjectId: x.subjectId, name: subjectName(db, x.subjectType, x.subjectId), access: x.access }))
   // rules on folders inside it (an admin's sub-rules): shown, never changed here
-  let hidden = 0
+  const hidden = new Set<string>()
   if (r.folder_path !== '') {
     const below = db.query("SELECT f.path, r.subject_type, r.subject_id, r.access FROM folder_rules r JOIN folders f ON f.id = r.folder_id WHERE substr(f.path, 1, length(?) + 1) = ? || '/' ORDER BY f.path, r.subject_type, r.subject_id")
       .all(r.folder_path, r.folder_path) as { path: string; subject_type: ProjectOtherRule['subjectType']; subject_id: string | null; access: ProjectOtherRule['access'] }[]
@@ -200,11 +200,11 @@ export function projectAccess(ctx: AppContext, r: ProjectRow, p: Principal): Pro
       // only rules of folders the caller can read (one they can only list, for something readable below it, keeps its
       // rules to whoever reads it): a member, and the owner or an admin who is not a member of a project in projects/
       // (docs/DECISIONS.md "Project contents only for members"); counted, never named
-      if (!atLeast(set.access(p, segsOf(x.path)), 'read')) { hidden++; continue }
+      if (!atLeast(set.access(p, segsOf(x.path)), 'read')) { hidden.add(x.path); continue }
       otherRules.push({ path: x.path, subjectType: x.subject_type, subjectId: x.subject_id, name: subjectName(db, x.subject_type, x.subject_id), access: x.access })
     }
   }
-  return { editable, participants, otherRules, rulesHash: rulesHash(rules), people, ...(hidden ? { otherRulesHidden: hidden } : {}) }
+  return { editable, participants, otherRules, rulesHash: rulesHash(rules), people, ...(hidden.size ? { otherRulesHidden: hidden.size } : {}) }
 }
 
 /** At most this many entries are looked at when the widening confirm counts a project's files. */

@@ -3,7 +3,8 @@
 // server's answer (GET /api/files/audience: a count only where they can write) or a team project's own count
 // (Project.audience); their own folder says "only you" by its path. The owner and admins' chip says the people by its
 // rules ("3명"; its accessible name adds "팀장·관리자 2명도 볼 수 있어요"; the server's split, never sent to members); the
-// panel's headline keeps the total (the panel is redesigned in its own branch). An admin's panel adds the people by name and where
+// panel's headline keeps the total (the panel is redesigned in its own branch). A team project's folder in projects/ says
+// its members only, with no role part anywhere (docs/DECISIONS.md "Project contents only for members"). An admin's panel adds the people by name and where
 // their access comes from, from the admin endpoints (FolderAccessAdmin.tsx, loaded only for admins). Nothing here
 // decides access.
 import { UserRound, Users } from 'lucide-react'
@@ -13,6 +14,7 @@ import type { Access, AccessTreeNode, FolderAudience, Project } from '@mycel/sha
 import { api, API, errorText } from '../lib/api'
 import { adminsOnly, chipLabel, chipOf, chipPlace, chipText, headlineText, type ChipPlace } from '../lib/folder-access'
 import { useFolderWords } from '../lib/folderLabels'
+import { isProjectsFolder, projectFolderOf } from '../lib/projectFolders'
 import { useLocale, useT } from '../i18n'
 import { accessChanged } from '../store/live'
 import { isAdmin, useMeStrict } from '../store/session'
@@ -90,11 +92,12 @@ export function FolderAccessChip({ path, access, project, onOpen }: { path: stri
   )
 }
 
-/** An admin changes the rules here from the panel, in Admin's edit panel: not on a folder of projects/ itself (a team
- * project's own folder: its members are changed on its page, #298; by its path, so a project list that failed to load
- * does not offer it) and not on a personal folder (rules never apply there). A project made before outside projects/
- * keeps it (its page sends admins to Admin too). */
-export const changeHere = (path: string, place: ChipPlace | null) => place !== null && place !== 'own' && !/^projects\/[^/]+$/.test(path)
+/** An admin changes the rules here from the panel, in Admin's edit panel: not on a folder of projects/ or anything in
+ * one (a team project's folder and what is in it are its members': they are changed on its page, and Admin › Folder
+ * permissions refuses them, 409 project_members_only; docs/DECISIONS.md "Project contents only for members"; by its path,
+ * so a project list that failed to load does not offer it) and not on a personal folder (rules never apply there). A
+ * project made before outside projects/ keeps it (its page sends admins to Admin too). */
+export const changeHere = (path: string, place: ChipPlace | null) => place !== null && place !== 'own' && !projectFolderOf(path)
 
 /** Whether a folder row's ⋯ menu offers "Who can see it" (where the chip would show for that folder). */
 export function offersFolderAccess(path: string, access: Access, me: string, project: Project | null): boolean {
@@ -141,9 +144,9 @@ export function FolderAccessPanel({ target, project, onClose }: { target: { path
               {!project.membersEditable && (
                 <p className="text-muted break-keep" data-testid="folder-access-members-hint">
                   {admin
-                    ? /^projects\/[^/]+$/.test(project.folderPath)
+                    ? isProjectsFolder(project.folderPath)
                       ? t('projects.membersFolderMissing')
-                      : t('projects.legacyNote', { folder: words.path(project.folderPath) || t('files.root') })
+                      : t('projects.legacyNote')
                     : project.creatorChangesMembers && project.createdBy
                       ? t('projects.membersByCreator', { name: project.createdBy.name })
                       : t('projects.membersByAdmins')}

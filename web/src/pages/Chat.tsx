@@ -36,7 +36,7 @@ import { useLocale, useT } from '../i18n'
 import { useChats } from '../store/chats'
 import { useSessionMarkers } from '../store/sessionMarkers'
 import { useEngines } from '../store/engines'
-import { canChooseEngine, useMeStrict } from '../store/session'
+import { canChooseEngine, isAdmin, useMeStrict } from '../store/session'
 import { emptyThread, runningMessage, type ViewMessage } from '../store/thread'
 import { QueueFull, useSendQueue } from '../store/sendQueue'
 import { toast } from '../store/ui'
@@ -329,6 +329,14 @@ function ChatView({ chatId }: { chatId: string }) {
     return (
       <div className="flex h-full flex-col justify-center" data-testid="chat-not-found">
         <EmptyState title={t('chat.notFound')}>
+          {/* the owner and admins: a chat of a project they are not in is "not found" too (its contents are its members',
+              docs/DECISIONS.md "Project contents only for members"); the same line for every missing chat, so it tells
+              nothing about this one */}
+          {isAdmin(me) && (
+            <p className="mb-1" data-testid="chat-not-found-manage">
+              {t('chat.notFoundManage')}
+            </p>
+          )}
           <Link to="/" className="mt-1 inline-block font-medium text-accent-text underline">
             {t('sidebar.askAi', { name: aiName(t) })}
           </Link>
